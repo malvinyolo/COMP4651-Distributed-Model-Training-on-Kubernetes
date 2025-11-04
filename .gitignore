@@ -1,0 +1,27 @@
+# Virtual environments
+venv/
+.env/
+*.venv
+
+# Data files - don't push large data files to GitHub
+data-pipeline/data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
