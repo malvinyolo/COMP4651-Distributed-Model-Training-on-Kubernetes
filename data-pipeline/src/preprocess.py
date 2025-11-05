@@ -4,15 +4,10 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import joblib
 import os
+import sys
 
-# CONFIGURATION
-SEQUENCE_LENGTH = 60
-FEATURE_COLUMN = 'Close'
-TARGET_COLUMN = 'Close'
-TEST_SIZE = 0.2
-RAW_DATA_PATH = "../data/raw/sp500_raw.csv"
-PROCESSED_DATA_PATH = "../data/processed/sp500_sequences.npz"
-SCALER_PATH = "../data/processed/scaler.pkl"
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import *
 
 class DataPreprocessor:
     def __init__(self):
@@ -57,20 +52,18 @@ class DataPreprocessor:
         
         return data
     
-    def create_sequences(self, data):
-        """Create LSTM sequences"""
-        print("Creating sequences...")
+    def create_regression_sequences(self, data):
+        """Create sequences for price prediction (regression)"""
+        print("Creating regression sequences...")
         
         # Extract the feature column
         feature_data = data[FEATURE_COLUMN].values.reshape(-1, 1)
         print(f"Feature data shape: {feature_data.shape}")
-        print(f"Feature data sample: {feature_data[:5].flatten()}")  # Show first 5 values
         
         # Scale the data
         print("Scaling data...")
         scaled_data = self.scaler.fit_transform(feature_data)
         print(f"Scaled data range: [{scaled_data.min():.3f}, {scaled_data.max():.3f}]")
-        print(f"Scaled data sample: {scaled_data[:5].flatten()}")  # Show first 5 scaled values
         
         # Create sequences for LSTM
         X, y = [], []
@@ -84,9 +77,49 @@ class DataPreprocessor:
         # Reshape X to 3D for LSTM: (samples, timesteps, features)
         X = X.reshape(X.shape[0], X.shape[1], 1)
         
-        print(f"Created {len(X)} sequences")
+        print(f"Created {len(X)} regression sequences")
         print(f"   X shape: {X.shape}")
         print(f"   y shape: {y.shape}")
+        
+        return X, y
+    
+    def create_classification_sequences(self, data):
+        """Create sequences for Long/Short classification"""
+        print("Creating classification sequences...")
+        
+        # Calculate daily returns and create labels
+        data = data.copy()
+        data['Return'] = data['Close'].pct_change()
+        data['Label'] = (data['Return'].shift(-1) > CLASSIFICATION_THRESHOLD).astype(int)
+        
+        # Remove NaN values created by pct_change and shift
+        data = data.dropna()
+        
+        print(f"Label distribution:")
+        print(f"   Long (1): {data['Label'].sum()} samples")
+        print(f"   Short (0): {len(data) - data['Label'].sum()} samples")
+        print(f"   Threshold: {CLASSIFICATION_THRESHOLD:.3f} ({CLASSIFICATION_THRESHOLD*100:.2f}%)")
+        print(f"   Class balance: {data['Label'].mean():.2%} positive")
+        
+        # Extract and scale the feature column (Close prices)
+        feature_data = data['Close'].values.reshape(-1, 1)
+        scaled_features = self.scaler.fit_transform(feature_data)
+        
+        # Create sequences
+        X, y = [], []
+        for i in range(SEQUENCE_LENGTH, len(scaled_features)):
+            X.append(scaled_features[i-SEQUENCE_LENGTH:i, 0])  # Past 60 days of prices
+            y.append(data['Label'].iloc[i])  # Binary label for next day
+            
+        X = np.array(X)
+        y = np.array(y)
+        
+        # Reshape X to 3D for LSTM: (samples, timesteps, features)
+        X = X.reshape(X.shape[0], X.shape[1], 1)
+        
+        print(f"Created {len(X)} classification sequences")
+        print(f"   X shape: {X.shape}")
+        print(f"   y shape: {y.shape} (binary labels: 0=Short, 1=Long)")
         
         return X, y
     
@@ -100,19 +133,21 @@ class DataPreprocessor:
         print(f"Split: {len(X_train)} train, {len(X_test)} test samples")
         return X_train, X_test, y_train, y_test
     
-    def save_processed_data(self, X_train, X_test, y_train, y_test):
+    def save_processed_data(self, X_train, X_test, y_train, y_test, file_path):
         """Save processed data"""
         # Create directories if they don't exist
-        os.makedirs(os.path.dirname(PROCESSED_DATA_PATH), exist_ok=True)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
-        np.savez(PROCESSED_DATA_PATH, 
+        np.savez(file_path, 
                  X_train=X_train, X_test=X_test, 
                  y_train=y_train, y_test=y_test)
-        joblib.dump(self.scaler, SCALER_PATH)
         
-        print(f"Processed data saved:")
-        print(f"   {PROCESSED_DATA_PATH}")
-        print(f"   {SCALER_PATH}")
+        print(f"Data saved to: {file_path}")
+    
+    def save_scaler(self):
+        """Save the scaler for inverse transformations"""
+        joblib.dump(self.scaler, SCALER_PATH)
+        print(f"Scaler saved to: {SCALER_PATH}")
 
 def main():
     processor = DataPreprocessor()
@@ -120,22 +155,47 @@ def main():
     # Load and clean data
     data = processor.load_and_clean_data()
     
-    # Create sequences
-    X, y = processor.create_sequences(data)
+    print("\n" + "="*50)
+    print("PROCESSING REGRESSION DATA")
+    print("="*50)
     
-    # Split data
-    X_train, X_test, y_train, y_test = processor.split_data(X, y)
+    # Create regression sequences (price prediction)
+    X_reg, y_reg = processor.create_regression_sequences(data)
+    X_train_reg, X_test_reg, y_train_reg, y_test_reg = processor.split_data(X_reg, y_reg)
     
-    # Save results
-    processor.save_processed_data(X_train, X_test, y_train, y_test)
+    # Save regression data
+    processor.save_processed_data(X_train_reg, X_test_reg, y_train_reg, y_test_reg, REGRESSION_DATA_PATH)
+    processor.save_scaler()
     
-    print(f"\nFinal Data Shapes:")
-    print(f"   X_train: {X_train.shape}")
-    print(f"   X_test:  {X_test.shape}")
-    print(f"   y_train: {y_train.shape}")
-    print(f"   y_test:  {y_test.shape}")
+    print("\n" + "="*50)
+    print("PROCESSING CLASSIFICATION DATA") 
+    print("="*50)
     
-    return X_train, X_test, y_train, y_test, processor.scaler
+    # Create classification sequences (Long/Short prediction)
+    X_cls, y_cls = processor.create_classification_sequences(data)
+    X_train_cls, X_test_cls, y_train_cls, y_test_cls = processor.split_data(X_cls, y_cls)
+    
+    # Save classification data
+    processor.save_processed_data(X_train_cls, X_test_cls, y_train_cls, y_test_cls, CLASSIFICATION_DATA_PATH)
+    
+    # Final summary
+    print("\n" + "="*50)
+    print("PREPROCESSING COMPLETED!")
+    print("="*50)
+    print(f"Regression data: {REGRESSION_DATA_PATH}")
+    print(f"      - For predicting exact prices")
+    print(f"      - X_train: {X_train_reg.shape}, y_train: {y_train_reg.shape}")
+    print(f"Classification data: {CLASSIFICATION_DATA_PATH}")
+    print(f"      - For Long/Short trading decisions") 
+    print(f"      - X_train: {X_train_cls.shape}, y_train: {y_train_cls.shape}")
+    print(f"      - Class balance: {np.mean(y_train_cls):.2%} Long positions")
+    print(f"Scaler: {SCALER_PATH}")
+    print(f"      - For converting predictions back to prices")
+    
+    return {
+        'regression': (X_train_reg, X_test_reg, y_train_reg, y_test_reg),
+        'classification': (X_train_cls, X_test_cls, y_train_cls, y_test_cls)
+    }
 
 if __name__ == "__main__":
     main()

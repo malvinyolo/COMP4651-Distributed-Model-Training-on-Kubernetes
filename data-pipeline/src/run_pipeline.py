@@ -23,7 +23,6 @@ def main():
     preprocess_data()
     
     print("\nPIPELINE COMPLETED SUCCESSFULLY!")
-    print("Data is ready for the Modeling Lead!")
 
 if __name__ == "__main__":
     main()
