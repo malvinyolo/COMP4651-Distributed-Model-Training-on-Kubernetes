@@ -1,0 +1,32 @@
+# Quick test configuration - very small/fast for local testing
+
+data:
+  npz_path: "./test_data_small.npz"
+  valid_from_train: 0.2        # Use 20% for validation
+  shuffle_train: false
+  norm: "zscore"
+
+model:
+  kind: "lstm"
+  input_dim: null              # auto-inferred
+  hidden: 32                   # Smaller model for faster training
+  layers: 1
+  dropout: 0.1
+
+train:
+  epochs: 10                   # Just 10 epochs for quick test
+  batch_size: 32               # Small batch size
+  lr: 0.001
+  weight_decay: 0.0
+  early_stop_metric: "auc"
+  early_stop_patience: 3       # Stop early if not improving
+  seed: 42
+  device: "cpu"                # Force CPU for consistent results
+
+eval:
+  threshold: 0.5
+  save_cm: true
+
+io:
+  save_dir: "./outputs"
+  run_name: "test_run"         # Fixed name for easy finding

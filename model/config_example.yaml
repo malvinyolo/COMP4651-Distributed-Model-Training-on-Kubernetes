@@ -1,0 +1,33 @@
+# Example configuration for local testing
+# Copy to config_local.yaml and modify for your setup
+
+data:
+  npz_path: "../data-pipeline/data/processed/sp500_classification.npz"
+  valid_from_train: 0.1
+  shuffle_train: false
+  norm: "zscore"
+
+model:
+  kind: "lstm"      # or "gru"
+  input_dim: null   # auto-inferred
+  hidden: 64
+  layers: 1
+  dropout: 0.1
+
+train:
+  epochs: 25
+  batch_size: 64
+  lr: 0.001
+  weight_decay: 0.0
+  early_stop_metric: "auc"    # or "val_loss"
+  early_stop_patience: 5
+  seed: 42
+  device: "auto"    # "cpu", "cuda", or "auto"
+
+eval:
+  threshold: 0.5
+  save_cm: true
+
+io:
+  save_dir: "./outputs"
+  run_name: null    # auto-generated timestamp if null
