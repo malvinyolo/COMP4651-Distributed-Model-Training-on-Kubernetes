@@ -1,0 +1,19 @@
+apiVersion: kubeflow.org/v1
+kind: PyTorchJob
+metadata:
+  name: train-dist-2w
+  namespace: kubeflow
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      restartPolicy: OnFailure
+      template:
+        spec:
+          containers:
+          - name: trainer
+            image: chanjiraphat/kubeflow-train:v1
+            command: ["python", "model/src/distributed_train.py"]
+            env:
+            - name: TORCH_DISTRIBUTED_DEBUG
+              value: "OFF"
