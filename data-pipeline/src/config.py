@@ -1,22 +1,28 @@
 # data-pipeline/src/config.py
 import os
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # This is src folder
-DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data")  # Go up from src to data-pipeline, then to data
 
-# Data Parameters
-SEQUENCE_LENGTH = 60
-FEATURE_COLUMN = 'Close'  # Start simple
-TARGET = 'Close'
-TICKER = '^GSPC'  # S&P 500
+# Get absolute paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data")
+
+# 7 Stocks for distributed training
+STOCKS = ['AAPL', 'MSFT', 'TSLA', 'JPM', 'AMZN', 'XOM', 'JNJ']
+
+# Data parameters - Daily data for 5 years
+DATA_INTERVAL = "1d"    # Daily data
+DATA_PERIOD = "5y"      # 5 years
+SEQUENCE_LENGTH = 60    # 60 days (approx 3 months)
 TEST_SIZE = 0.2
-CLASSIFICATION_THRESHOLD = 0.001  # 0.1% minimum return for "Long"
+CLASSIFICATION_THRESHOLD = 0.001  # 0.1% price movement
 
-# File Paths
-RAW_DATA_PATH = os.path.join(DATA_DIR, "raw/sp500_raw.csv")
-REGRESSION_DATA_PATH = os.path.join(DATA_DIR, "processed/sp500_regression.npz")
-CLASSIFICATION_DATA_PATH = os.path.join(DATA_DIR, "processed/sp500_classification.npz")
-SCALER_PATH = os.path.join(DATA_DIR, "processed/scaler.pkl")
+# File paths
+RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
+PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
 
 # Create directories
-os.makedirs('../data/raw', exist_ok=True)
-os.makedirs('../data/processed', exist_ok=True)
+os.makedirs(RAW_DATA_DIR, exist_ok=True)
+os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
+
+print("Configuration loaded: 7 stocks, daily data over 5 years")
+print(f"Stocks: {STOCKS}")
+print(f"Sequence length: {SEQUENCE_LENGTH} days")

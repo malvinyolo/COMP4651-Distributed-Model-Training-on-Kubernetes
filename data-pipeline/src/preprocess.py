@@ -5,197 +5,209 @@ from sklearn.preprocessing import MinMaxScaler
 import joblib
 import os
 import sys
+import json
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Import configuration
+sys.path.append(os.path.dirname(__file__))
 from config import *
 
 class DataPreprocessor:
     def __init__(self):
-        self.scaler = MinMaxScaler()
+        self.scalers = {}
         
-    def load_and_clean_data(self):
-        """Load and clean raw data"""
-        print("Loading and cleaning data...")
+    def load_data(self):
+        """Load all stock data"""
+        print("Loading data...")
+        all_data = {}
         
-        # First load without date parsing to see raw structure
-        data = pd.read_csv(RAW_DATA_PATH)
-        print(f"Raw data shape: {data.shape}")
-        print(f"Raw columns: {data.columns.tolist()}")
+        for ticker in STOCKS:
+            filepath = os.path.join(RAW_DATA_DIR, f"{ticker}.csv")
+            if os.path.exists(filepath):
+                try:
+                    # Load the data
+                    data = pd.read_csv(filepath)
+                    
+                    # Set Datetime as index
+                    data = data.set_index('Datetime')
+                    data.index = pd.to_datetime(data.index)
+                    
+                    # Ensure all columns are numeric
+                    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                        data[col] = pd.to_numeric(data[col], errors='coerce')
+                    
+                    # Remove any NaN values
+                    data = data.dropna()
+                    
+                    print(f"Loaded {ticker}: {len(data)} clean numerical records")
+                    all_data[ticker] = data
+                    
+                except Exception as e:
+                    print(f"Error loading {ticker}: {e}")
+            else:
+                print(f"File not found: {filepath}")
         
-        # Clean the data - remove any non-numeric rows
-        print("Cleaning data...")
-        
-        # Convert numeric columns, coercing errors to NaN
-        numeric_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        for col in numeric_columns:
-            if col in data.columns:
-                data[col] = pd.to_numeric(data[col], errors='coerce')
-        
-        # Remove rows with NaN values (where conversion failed)
-        initial_count = len(data)
-        data = data.dropna()
-        cleaned_count = len(data)
-        
-        print(f"Data cleaning: {initial_count} → {cleaned_count} records "
-              f"(removed {initial_count - cleaned_count} non-numeric rows)")
-        
-        # Now set the index and parse dates
-        data = data.set_index(data.columns[0])  # Set first column as index
-        try:
-            data.index = pd.to_datetime(data.index)
-            print("Successfully parsed dates")
-        except:
-            print("Could not parse dates, using raw index")
-        
-        print(f"Final columns: {data.columns.tolist()}")
-        print(f"Final data shape: {data.shape}")
-        
-        return data
+        print(f"Total stocks loaded: {len(all_data)}")
+        return all_data
     
-    def create_regression_sequences(self, data):
-        """Create sequences for price prediction (regression)"""
-        print("Creating regression sequences...")
+    def create_classification_sequences(self, data, ticker):
+        """Create classification sequences for next-day Long/Short prediction"""
+        print(f"Creating classification sequences for {ticker}...")
         
-        # Extract the feature column
-        feature_data = data[FEATURE_COLUMN].values.reshape(-1, 1)
-        print(f"Feature data shape: {feature_data.shape}")
-        
-        # Scale the data
-        print("Scaling data...")
-        scaled_data = self.scaler.fit_transform(feature_data)
-        print(f"Scaled data range: [{scaled_data.min():.3f}, {scaled_data.max():.3f}]")
-        
-        # Create sequences for LSTM
-        X, y = [], []
-        for i in range(SEQUENCE_LENGTH, len(scaled_data)):
-            X.append(scaled_data[i-SEQUENCE_LENGTH:i, 0])  # Past 60 days
-            y.append(scaled_data[i, 0])  # Next day's Close price
-            
-        X = np.array(X)
-        y = np.array(y)
-        
-        # Reshape X to 3D for LSTM: (samples, timesteps, features)
-        X = X.reshape(X.shape[0], X.shape[1], 1)
-        
-        print(f"Created {len(X)} regression sequences")
-        print(f"   X shape: {X.shape}")
-        print(f"   y shape: {y.shape}")
-        
-        return X, y
-    
-    def create_classification_sequences(self, data):
-        """Create sequences for Long/Short classification"""
-        print("Creating classification sequences...")
-        
-        # Calculate daily returns and create labels
         data = data.copy()
-        data['Return'] = data['Close'].pct_change()
-        data['Label'] = (data['Return'].shift(-1) > CLASSIFICATION_THRESHOLD).astype(int)
         
-        # Remove NaN values created by pct_change and shift
+        # Calculate next day's return and create labels
+        # Label = 1 (Long) if next day's return > threshold, else 0 (Short)
+        data['Next_Return'] = data['Close'].pct_change().shift(-1)
+        data['Label'] = (data['Next_Return'] > CLASSIFICATION_THRESHOLD).astype(int)
         data = data.dropna()
         
-        print(f"Label distribution:")
-        print(f"   Long (1): {data['Label'].sum()} samples")
-        print(f"   Short (0): {len(data) - data['Label'].sum()} samples")
-        print(f"   Threshold: {CLASSIFICATION_THRESHOLD:.3f} ({CLASSIFICATION_THRESHOLD*100:.2f}%)")
-        print(f"   Class balance: {data['Label'].mean():.2%} positive")
+        # Use multiple features for better prediction
+        features = ['Open', 'High', 'Low', 'Close', 'Volume']
         
-        # Extract and scale the feature column (Close prices)
-        feature_data = data['Close'].values.reshape(-1, 1)
-        scaled_features = self.scaler.fit_transform(feature_data)
+        # Scale features
+        feature_data = data[features].values
+        scaler = MinMaxScaler()
+        scaled_features = scaler.fit_transform(feature_data)
         
         # Create sequences
         X, y = [], []
         for i in range(SEQUENCE_LENGTH, len(scaled_features)):
-            X.append(scaled_features[i-SEQUENCE_LENGTH:i, 0])  # Past 60 days of prices
-            y.append(data['Label'].iloc[i])  # Binary label for next day
-            
+            # Use past SEQUENCE_LENGTH days to predict next day
+            X.append(scaled_features[i-SEQUENCE_LENGTH:i])
+            y.append(data['Label'].iloc[i])
+        
         X = np.array(X)
         y = np.array(y)
         
-        # Reshape X to 3D for LSTM: (samples, timesteps, features)
-        X = X.reshape(X.shape[0], X.shape[1], 1)
+        # Calculate class distribution
+        long_count = sum(y)
+        short_count = len(y) - long_count
+        long_ratio = long_count / len(y)
         
-        print(f"Created {len(X)} classification sequences")
-        print(f"   X shape: {X.shape}")
-        print(f"   y shape: {y.shape} (binary labels: 0=Short, 1=Long)")
+        print(f"  {ticker} classification: {len(X)} sequences")
+        print(f"    Long: {long_count} ({long_ratio:.2%}), Short: {short_count} ({1-long_ratio:.2%})")
         
-        return X, y
+        return X, y, scaler
     
     def split_data(self, X, y):
-        """Split data sequentially"""
+        """Split data into train and test sets (chronological split)"""
         split_idx = int(len(X) * (1 - TEST_SIZE))
-        
         X_train, X_test = X[:split_idx], X[split_idx:]
         y_train, y_test = y[:split_idx], y[split_idx:]
-        
-        print(f"Split: {len(X_train)} train, {len(X_test)} test samples")
         return X_train, X_test, y_train, y_test
     
-    def save_processed_data(self, X_train, X_test, y_train, y_test, file_path):
-        """Save processed data"""
-        # Create directories if they don't exist
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    def process_all_stocks(self):
+        """Process all stocks and create classification sequences"""
+        print("Starting sequence creation for daily classification...")
         
-        np.savez(file_path, 
-                 X_train=X_train, X_test=X_test, 
-                 y_train=y_train, y_test=y_test)
+        # Load data
+        all_data = self.load_data()
+        if not all_data:
+            print("No data found! Run data_collector.py first.")
+            return None
         
-        print(f"Data saved to: {file_path}")
+        classification_data = {}
+        
+        print("\nProcessing stocks for classification:")
+        print("=" * 60)
+        
+        for ticker, data in all_data.items():
+            print(f"Processing {ticker}...")
+            
+            try:
+                # Classification sequences for next-day prediction
+                X_cls, y_cls, scaler_cls = self.create_classification_sequences(data, ticker)
+                X_train_cls, X_test_cls, y_train_cls, y_test_cls = self.split_data(X_cls, y_cls)
+                
+                classification_data[ticker] = {
+                    'X_train': X_train_cls, 'X_test': X_test_cls,
+                    'y_train': y_train_cls, 'y_test': y_test_cls,
+                    'scaler': scaler_cls,
+                    'features': ['Open', 'High', 'Low', 'Close', 'Volume']
+                }
+                
+                print(f"  {ticker} completed successfully\n")
+                
+            except Exception as e:
+                print(f"  Error processing {ticker}: {e}\n")
+                continue
+        
+        # Save datasets
+        if classification_data:
+            self.save_datasets(classification_data)
+        
+        return classification_data
     
-    def save_scaler(self):
-        """Save the scaler for inverse transformations"""
-        joblib.dump(self.scaler, SCALER_PATH)
-        print(f"Scaler saved to: {SCALER_PATH}")
+    def save_datasets(self, classification_data):
+        """Save all classification datasets"""
+        print("Saving classification datasets...")
+        
+        # Create directory
+        classification_dir = os.path.join(PROCESSED_DATA_DIR, 'classification')
+        os.makedirs(classification_dir, exist_ok=True)
+        
+        # Save classification data for each stock
+        for ticker, data in classification_data.items():
+            filepath = os.path.join(classification_dir, f'{ticker}.npz')
+            np.savez(filepath,
+                     X_train=data['X_train'], X_test=data['X_test'],
+                     y_train=data['y_train'], y_test=data['y_test'])
+            
+            # Save scaler
+            scaler_path = os.path.join(classification_dir, f'{ticker}_scaler.pkl')
+            joblib.dump(data['scaler'], scaler_path)
+            
+            # Save feature info
+            feature_info = {
+                'features': data['features'],
+                'sequence_length': SEQUENCE_LENGTH,
+                'classification_threshold': CLASSIFICATION_THRESHOLD
+            }
+            feature_path = os.path.join(classification_dir, f'{ticker}_features.json')
+            with open(feature_path, 'w') as f:
+                json.dump(feature_info, f, indent=2)
+        
+        # Save overall metadata
+        metadata = {
+            'task_type': 'classification',
+            'prediction_horizon': 'next_day',
+            'total_stocks': len(classification_data),
+            'stocks_processed': list(classification_data.keys()),
+            'sequence_length': SEQUENCE_LENGTH,
+            'data_interval': DATA_INTERVAL,
+            'data_period': DATA_PERIOD,
+            'classification_threshold': CLASSIFICATION_THRESHOLD,
+            'total_sequences': sum(data['X_train'].shape[0] for data in classification_data.values()),
+            'feature_count': 5,  # Open, High, Low, Close, Volume
+            'test_size': TEST_SIZE
+        }
+        
+        metadata_path = os.path.join(PROCESSED_DATA_DIR, 'classification_metadata.json')
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        print(f"Classification datasets saved to {classification_dir}")
+        print(f"Total sequences: {metadata['total_sequences']:,}")
 
 def main():
     processor = DataPreprocessor()
+    classification_data = processor.process_all_stocks()
     
-    # Load and clean data
-    data = processor.load_and_clean_data()
-    
-    print("\n" + "="*50)
-    print("PROCESSING REGRESSION DATA")
-    print("="*50)
-    
-    # Create regression sequences (price prediction)
-    X_reg, y_reg = processor.create_regression_sequences(data)
-    X_train_reg, X_test_reg, y_train_reg, y_test_reg = processor.split_data(X_reg, y_reg)
-    
-    # Save regression data
-    processor.save_processed_data(X_train_reg, X_test_reg, y_train_reg, y_test_reg, REGRESSION_DATA_PATH)
-    processor.save_scaler()
-    
-    print("\n" + "="*50)
-    print("PROCESSING CLASSIFICATION DATA") 
-    print("="*50)
-    
-    # Create classification sequences (Long/Short prediction)
-    X_cls, y_cls = processor.create_classification_sequences(data)
-    X_train_cls, X_test_cls, y_train_cls, y_test_cls = processor.split_data(X_cls, y_cls)
-    
-    # Save classification data
-    processor.save_processed_data(X_train_cls, X_test_cls, y_train_cls, y_test_cls, CLASSIFICATION_DATA_PATH)
-    
-    # Final summary
-    print("\n" + "="*50)
-    print("PREPROCESSING COMPLETED!")
-    print("="*50)
-    print(f"Regression data: {REGRESSION_DATA_PATH}")
-    print(f"      - For predicting exact prices")
-    print(f"      - X_train: {X_train_reg.shape}, y_train: {y_train_reg.shape}")
-    print(f"Classification data: {CLASSIFICATION_DATA_PATH}")
-    print(f"      - For Long/Short trading decisions") 
-    print(f"      - X_train: {X_train_cls.shape}, y_train: {y_train_cls.shape}")
-    print(f"      - Class balance: {np.mean(y_train_cls):.2%} Long positions")
-    print(f"Scaler: {SCALER_PATH}")
-    print(f"      - For converting predictions back to prices")
-    
-    return {
-        'regression': (X_train_reg, X_test_reg, y_train_reg, y_test_reg),
-        'classification': (X_train_cls, X_test_cls, y_train_cls, y_test_cls)
-    }
+    if classification_data:
+        total_sequences = sum(data['X_train'].shape[0] for data in classification_data.values())
+        total_stocks = len(classification_data)
+        
+        print("\n" + "=" * 60)
+        print("DAILY CLASSIFICATION PROCESSING COMPLETED SUCCESSFULLY!")
+        print("=" * 60)
+        print(f"Stocks processed: {total_stocks}")
+        print(f"Total sequences: {total_sequences:,}")
+        print(f"Sequence length: {SEQUENCE_LENGTH} days")
+        print(f"Prediction: Next-day Long/Short (threshold: {CLASSIFICATION_THRESHOLD:.3f})")
+        print(f"Features: Open, High, Low, Close, Volume")
+        print(f"Perfect for distributed training with {total_stocks} stocks!")
+    else:
+        print("Processing failed!")
 
 if __name__ == "__main__":
     main()
