@@ -1,245 +1,209 @@
-"""
-Training and evaluation loops with early stopping
-"""
+"""Training, validation, and testing loops."""
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 import numpy as np
-from utils import log
+from typing import Tuple, Dict
+import os
+from .utils import Timer, log
+from .artifacts import save_state_dict
 
 
-def train_one_epoch(model: nn.Module, loader, optimizer, device) -> dict:
+def train_one_epoch(
+    model: nn.Module,
+    loader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    criterion: nn.Module,
+    device: str
+) -> float:
     """
-    Train for one epoch.
+    Train model for one epoch.
     
     Args:
         model: PyTorch model
-        loader: Training data loader
+        loader: Training DataLoader
         optimizer: Optimizer
-        device: torch device
+        criterion: Loss function
+        device: Device to train on
     
     Returns:
-        Dictionary with average loss
+        Average training loss
     """
     model.train()
-    criterion = nn.BCEWithLogitsLoss()
-    
     total_loss = 0.0
     n_batches = 0
     
-    for X_batch, y_batch in loader:
-        X_batch = X_batch.to(device)
-        y_batch = y_batch.to(device).float()  # BCEWithLogitsLoss expects float targets
+    for X, y in loader:
+        X, y = X.to(device), y.to(device)
         
-        # Forward pass
-        logits = model(X_batch)
-        loss = criterion(logits, y_batch)
-        
-        # Backward pass
         optimizer.zero_grad()
+        y_pred = model(X)
+        loss = criterion(y_pred, y)
         loss.backward()
         optimizer.step()
         
         total_loss += loss.item()
         n_batches += 1
     
-    avg_loss = total_loss / n_batches if n_batches > 0 else 0.0
-    
-    return {"loss": avg_loss}
+    return total_loss / n_batches if n_batches > 0 else 0.0
 
 
-@torch.no_grad()
-def evaluate(model: nn.Module, loader, device) -> dict:
+def evaluate(
+    model: nn.Module,
+    loader: DataLoader,
+    criterion: nn.Module,
+    device: str
+) -> Tuple[float, np.ndarray, np.ndarray]:
     """
     Evaluate model on a dataset.
     
     Args:
         model: PyTorch model
-        loader: Data loader
-        device: torch device
+        loader: DataLoader (validation or test)
+        criterion: Loss function
+        device: Device to evaluate on
     
     Returns:
-        Dictionary with loss, y_true, y_prob (numpy arrays)
+        avg_loss: Average loss
+        y_true: Ground truth values (numpy array)
+        y_pred: Predicted values (numpy array)
     """
     model.eval()
-    criterion = nn.BCEWithLogitsLoss()
-    
     total_loss = 0.0
     n_batches = 0
+    all_preds = []
+    all_targets = []
     
-    all_logits = []
-    all_labels = []
-    
-    for X_batch, y_batch in loader:
-        X_batch = X_batch.to(device)
-        y_batch = y_batch.to(device).float()
-        
-        # Forward pass
-        logits = model(X_batch)
-        loss = criterion(logits, y_batch)
-        
-        total_loss += loss.item()
-        n_batches += 1
-        
-        # Collect predictions and labels
-        all_logits.append(logits.cpu().numpy())
-        all_labels.append(y_batch.cpu().numpy())
-    
-    # Concatenate all batches
-    all_logits = np.concatenate(all_logits, axis=0)
-    all_labels = np.concatenate(all_labels, axis=0)
-    
-    # Convert logits to probabilities via sigmoid
-    y_prob = 1.0 / (1.0 + np.exp(-all_logits))
-    y_true = all_labels.astype(np.int64)
+    with torch.no_grad():
+        for X, y in loader:
+            X, y = X.to(device), y.to(device)
+            
+            y_pred = model(X)
+            loss = criterion(y_pred, y)
+            
+            total_loss += loss.item()
+            n_batches += 1
+            
+            all_preds.append(y_pred.cpu().numpy())
+            all_targets.append(y.cpu().numpy())
     
     avg_loss = total_loss / n_batches if n_batches > 0 else 0.0
+    y_true = np.concatenate(all_targets)
+    y_pred = np.concatenate(all_preds)
     
-    return {
-        "loss": avg_loss,
-        "y_true": y_true,
-        "y_prob": y_prob
-    }
+    return avg_loss, y_true, y_pred
 
 
-def fit(model: nn.Module,
-        train_loader,
-        val_loader,
-        cfg: dict,
-        device,
-        save_path: str) -> tuple:
+def fit(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    cfg: Dict,
+    save_dir: str,
+    device: str
+) -> Tuple[str, Dict]:
     """
     Train model with early stopping.
     
     Args:
         model: PyTorch model
-        train_loader: Training data loader
-        val_loader: Validation data loader
-        cfg: Configuration dictionary
-        device: torch device
-        save_path: Path to save best checkpoint
+        train_loader: Training DataLoader
+        val_loader: Validation DataLoader
+        cfg: Configuration dict with 'epochs', 'lr', 'patience'
+        save_dir: Directory to save checkpoints
+        device: Device to train on
     
     Returns:
-        (best_checkpoint_path, history_dict)
+        ckpt_path: Path to best checkpoint
+        timing_info: Dict with timing statistics
     """
-    from metrics import bin_metrics
+    epochs = cfg['epochs']
+    lr = cfg['lr']
+    patience = cfg.get('patience', 5)
     
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=cfg['train']['lr'],
-        weight_decay=cfg['train']['weight_decay']
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    criterion = nn.MSELoss()
     
-    epochs = cfg['train']['epochs']
-    patience = cfg['train']['early_stop_patience']
-    metric_name = cfg['train']['early_stop_metric']
-    
-    best_metric = -float('inf') if metric_name == 'auc' else float('inf')
-    best_epoch = 0
+    best_val_loss = float('inf')
     patience_counter = 0
+    best_epoch = 0
+    ckpt_path = os.path.join(save_dir, 'best.ckpt')
     
-    history = {
-        'train_loss': [],
-        'val_loss': [],
-        'val_acc': [],
-        'val_auc': [],
-        'val_prec': [],
-        'val_rec': []
-    }
+    epoch_times = []
     
     log(f"Starting training for {epochs} epochs...")
-    log(f"Early stopping: metric={metric_name}, patience={patience}")
     
     for epoch in range(1, epochs + 1):
-        # Train
-        train_metrics = train_one_epoch(model, train_loader, optimizer, device)
+        with Timer() as timer:
+            # Train
+            train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
+            
+            # Validate
+            val_loss, _, _ = evaluate(model, val_loader, criterion, device)
         
-        # Validate
-        val_results = evaluate(model, val_loader, device)
-        val_metrics = bin_metrics(val_results['y_true'], val_results['y_prob'])
+        epoch_time = timer.elapsed
+        epoch_times.append(epoch_time)
         
-        # Log
-        history['train_loss'].append(train_metrics['loss'])
-        history['val_loss'].append(val_results['loss'])
-        history['val_acc'].append(val_metrics['acc'])
-        history['val_auc'].append(val_metrics['auc'])
-        history['val_prec'].append(val_metrics['prec'])
-        history['val_rec'].append(val_metrics['rec'])
-        
-        log(f"Epoch {epoch}/{epochs} | "
-            f"train_loss={train_metrics['loss']:.4f} | "
-            f"val_loss={val_results['loss']:.4f} | "
-            f"val_acc={val_metrics['acc']:.3f} | "
-            f"val_auc={val_metrics['auc']:.3f}")
+        # Log progress
+        log(f"Epoch {epoch}/{epochs} | Train Loss: {train_loss:.6f} | "
+            f"Val Loss: {val_loss:.6f} | Time: {epoch_time:.2f}s")
         
         # Early stopping check
-        if metric_name == 'auc':
-            current_metric = val_metrics['auc']
-            improved = current_metric > best_metric
-        else:  # val_loss
-            current_metric = val_results['loss']
-            improved = current_metric < best_metric
-        
-        if improved:
-            best_metric = current_metric
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
             best_epoch = epoch
             patience_counter = 0
-            
-            # Save best checkpoint
-            torch.save(model.state_dict(), save_path)
-            log(f"  ✓ New best {metric_name}={best_metric:.4f}, saved checkpoint")
+            save_state_dict(model, ckpt_path)
+            log(f"  → New best! Saved checkpoint.")
         else:
             patience_counter += 1
-            log(f"  No improvement ({patience_counter}/{patience})")
-            
             if patience_counter >= patience:
-                log(f"Early stopping triggered at epoch {epoch}")
+                log(f"Early stopping triggered after {epoch} epochs (patience={patience})")
                 break
     
-    log(f"Training complete. Best epoch: {best_epoch}, best {metric_name}: {best_metric:.4f}")
+    log(f"Training complete. Best epoch: {best_epoch} (val_loss={best_val_loss:.6f})")
     
-    return save_path, history
+    # Compute timing statistics
+    timing_info = {
+        'total_epochs': len(epoch_times),
+        'best_epoch': best_epoch,
+        'total_time_sec': sum(epoch_times),
+        'mean_time_per_epoch': np.mean(epoch_times),
+        'std_time_per_epoch': np.std(epoch_times),
+        'epoch_times': epoch_times
+    }
+    
+    return ckpt_path, timing_info
 
 
-def test(model: nn.Module,
-         test_loader,
-         checkpoint_path: str,
-         device,
-         threshold: float = 0.5) -> dict:
+def test(
+    model: nn.Module,
+    test_loader: DataLoader,
+    ckpt_path: str,
+    device: str
+) -> Tuple[Dict, np.ndarray, np.ndarray]:
     """
-    Test model on test set.
+    Load best checkpoint and evaluate on test set.
     
     Args:
         model: PyTorch model
-        test_loader: Test data loader
-        checkpoint_path: Path to best checkpoint
-        device: torch device
-        threshold: Classification threshold
+        test_loader: Test DataLoader
+        ckpt_path: Path to checkpoint
+        device: Device to evaluate on
     
     Returns:
-        Dictionary with metrics and predictions
+        test_metrics: Dict with test loss
+        y_true: Ground truth values
+        y_pred: Predicted values
     """
-    from metrics import bin_metrics, confusion
-    
     # Load best checkpoint
-    log(f"Loading best checkpoint from {checkpoint_path}")
-    model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+    state_dict = torch.load(ckpt_path, map_location=device)
+    model.load_state_dict(state_dict)
+    log(f"Loaded checkpoint from {ckpt_path}")
     
-    # Evaluate on test set
-    test_results = evaluate(model, test_loader, device)
-    test_metrics = bin_metrics(test_results['y_true'], test_results['y_prob'], threshold)
-    cm = confusion(test_results['y_true'], test_results['y_prob'], threshold)
+    criterion = nn.MSELoss()
+    test_loss, y_true, y_pred = evaluate(model, test_loader, criterion, device)
     
-    log(f"Test Results:")
-    log(f"  Loss: {test_results['loss']:.4f}")
-    log(f"  Acc:  {test_metrics['acc']:.3f}")
-    log(f"  AUC:  {test_metrics['auc']:.3f}")
-    log(f"  Prec: {test_metrics['prec']:.3f}")
-    log(f"  Rec:  {test_metrics['rec']:.3f}")
+    test_metrics = {'test_loss': test_loss}
     
-    return {
-        'loss': test_results['loss'],
-        'metrics': test_metrics,
-        'confusion_matrix': cm,
-        'y_true': test_results['y_true'],
-        'y_prob': test_results['y_prob']
-    }
+    return test_metrics, y_true, y_pred

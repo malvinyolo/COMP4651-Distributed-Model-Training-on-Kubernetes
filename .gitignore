@@ -1,31 +1,63 @@
-# Virtual environments
-venv/
-.env/
-*.venv
-
-# Data files - don't push large data files to GitHub
-data-pipeline/data/
-
-# Python cache
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 *.pyc
 *.pyo
 *.pyd
-.Python
+*.egg-info/
+dist/
+build/
 
-# IDE files
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+.env/
+*.venv
+
+# Model outputs and checkpoints
+model/outputs/
+*.ckpt
+*.pth
+*.pt
+
+# Data files (keep structure, not large files)
+data-pipeline/data/raw/*.csv
+data-pipeline/data/processed/*.npz
+data-pipeline/data/processed/*.pkl
+data-pipeline/data/processed/scaler.pkl
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# OS files
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Logs
 *.log
 
-# Model outputs
-model/outputs/*/
-!model/outputs/.gitkeep
+# Kubernetes
+*.kubeconfig
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

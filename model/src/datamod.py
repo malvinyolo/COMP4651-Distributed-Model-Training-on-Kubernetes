@@ -1,214 +1,117 @@
-"""
-Data module: NPZ loading, train/val split, normalization, DataLoaders
-"""
+"""Data loading, normalization, and DataLoader creation."""
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
+from typing import Tuple, Dict
 
 
 class SeqDataset(Dataset):
-    """
-    PyTorch Dataset for sequence data.
-    """
+    """Dataset for sequence regression."""
     
     def __init__(self, X: np.ndarray, y: np.ndarray):
         """
         Args:
-            X: Features of shape (N, T, F) - float32
-            y: Labels of shape (N,) - int64
+            X: shape (N, T, F) - sequence inputs
+            y: shape (N,) - regression targets
         """
-        self.X = torch.from_numpy(X).float()
-        self.y = torch.from_numpy(y).long()
+        self.X = torch.FloatTensor(X)
+        self.y = torch.FloatTensor(y)
     
-    def __len__(self):
-        return len(self.X)
-    
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.X[idx], self.y[idx]
+    
+    def __len__(self) -> int:
+        return len(self.X)
 
 
-def load_npz(path: str) -> dict:
+def build_dataloaders(
+    npz_path: str,
+    valid_ratio: float = 0.1,
+    batch_size: int = 64,
+    shuffle_train: bool = False,
+    num_workers: int = 0
+) -> Tuple[DataLoader, DataLoader, DataLoader, Dict[str, list], int]:
     """
-    Load NPZ file and validate contents.
+    Load NPZ data, split validation, normalize, and create DataLoaders.
     
     Args:
-        path: Path to NPZ file
+        npz_path: Path to sp500_regression.npz
+        valid_ratio: Fraction of training data to use for validation (from tail)
+        batch_size: Batch size for all loaders
+        shuffle_train: Whether to shuffle training data
+        num_workers: Number of workers for DataLoader
     
     Returns:
-        Dictionary with X_train, y_train, X_test, y_test
-    """
-    data = np.load(path, allow_pickle=False)
-    
-    # Extract arrays
-    X_train = data['X_train']
-    y_train = data['y_train']
-    X_test = data['X_test']
-    y_test = data['y_test']
-    
-    # Validate dtypes - accept float32 or float64 for X
-    assert X_train.dtype in [np.float32, np.float64], f"X_train must be float, got {X_train.dtype}"
-    assert X_test.dtype in [np.float32, np.float64], f"X_test must be float, got {X_test.dtype}"
-    assert y_train.dtype in [np.int64, np.int32, np.int_], f"y_train must be int, got {y_train.dtype}"
-    assert y_test.dtype in [np.int64, np.int32, np.int_], f"y_test must be int, got {y_test.dtype}"
-    
-    # Convert to float32 and int64
-    X_train = X_train.astype(np.float32)
-    X_test = X_test.astype(np.float32)
-    y_train = y_train.astype(np.int64)
-    y_test = y_test.astype(np.int64)
-    
-    # Validate shapes
-    assert X_train.ndim == 3, f"X_train must be 3D (N,T,F), got shape {X_train.shape}"
-    assert X_test.ndim == 3, f"X_test must be 3D (N,T,F), got shape {X_test.shape}"
-    assert y_train.ndim == 1, f"y_train must be 1D (N,), got shape {y_train.shape}"
-    assert y_test.ndim == 1, f"y_test must be 1D (N,), got shape {y_test.shape}"
-    
-    # Validate labels are binary
-    assert set(np.unique(y_train)).issubset({0, 1}), "y_train must contain only 0 and 1"
-    assert set(np.unique(y_test)).issubset({0, 1}), "y_test must contain only 0 and 1"
-    
-    return {
-        'X_train': X_train,
-        'y_train': y_train,
-        'X_test': X_test,
-        'y_test': y_test
-    }
-
-
-def split_train_valid(X_tr: np.ndarray, y_tr: np.ndarray, valid_ratio: float) -> tuple:
-    """
-    Split train into train/valid, preserving time order (validation is the tail).
-    
-    Args:
-        X_tr: Training features (N, T, F)
-        y_tr: Training labels (N,)
-        valid_ratio: Fraction of train to use for validation
-    
-    Returns:
-        (X_train, y_train, X_valid, y_valid)
-    """
-    n_total = len(X_tr)
-    n_valid = int(n_total * valid_ratio)
-    n_train = n_total - n_valid
-    
-    # Split chronologically: train is first n_train, valid is last n_valid
-    X_train = X_tr[:n_train]
-    y_train = y_tr[:n_train]
-    X_valid = X_tr[n_train:]
-    y_valid = y_tr[n_train:]
-    
-    return X_train, y_train, X_valid, y_valid
-
-
-def compute_norm_stats(X_tr: np.ndarray) -> dict:
-    """
-    Compute normalization statistics (mean, std) per feature across all timesteps.
-    
-    Args:
-        X_tr: Training data of shape (N, T, F)
-    
-    Returns:
-        Dictionary with 'mu' and 'sd' lists of length F
-    """
-    # Compute mean and std across samples and time (axis 0 and 1)
-    # Shape: (F,)
-    mu = np.mean(X_tr, axis=(0, 1), keepdims=False)
-    sd = np.std(X_tr, axis=(0, 1), keepdims=False)
-    
-    # Avoid division by zero
-    sd = np.where(sd == 0, 1.0, sd)
-    
-    return {
-        'mu': mu.tolist(),
-        'sd': sd.tolist()
-    }
-
-
-def apply_norm(X: np.ndarray, norm_stats: dict) -> np.ndarray:
-    """
-    Apply z-score normalization using precomputed statistics.
-    
-    Args:
-        X: Data of shape (N, T, F)
-        norm_stats: Dictionary with 'mu' and 'sd' lists
-    
-    Returns:
-        Normalized data (same shape)
-    """
-    mu = np.array(norm_stats['mu'], dtype=np.float32)
-    sd = np.array(norm_stats['sd'], dtype=np.float32)
-    
-    # Broadcast: (N, T, F) - (F,) => (N, T, F)
-    X_norm = (X - mu) / sd
-    
-    return X_norm
-
-
-def build_dataloaders(cfg: dict) -> tuple:
-    """
-    Build train, validation, and test dataloaders.
-    
-    Args:
-        cfg: Configuration dictionary
-    
-    Returns:
-        (train_loader, val_loader, test_loader, norm_stats, input_dim)
+        train_loader: Training DataLoader
+        val_loader: Validation DataLoader
+        test_loader: Test DataLoader
+        norm_stats: Dict with 'mu' and 'sd' (lists) computed from train data only
+        input_dim: Feature dimension (X.shape[-1])
     """
     # Load data
-    data = load_npz(cfg['data']['npz_path'])
-    X_train_full = data['X_train']
-    y_train_full = data['y_train']
-    X_test = data['X_test']
-    y_test = data['y_test']
+    data = np.load(npz_path, allow_pickle=False)
+    X_train = data['X_train']  # (N_train, 60, 1)
+    y_train = data['y_train']  # (N_train,)
+    X_test = data['X_test']    # (N_test, 60, 1)
+    y_test = data['y_test']    # (N_test,)
     
-    # Get input dimension
-    input_dim = X_train_full.shape[-1]
+    # Split validation from tail of training data (chronological)
+    n_train = len(X_train)
+    n_valid = int(n_train * valid_ratio)
+    n_train_actual = n_train - n_valid
     
-    # Split train into train/valid
-    valid_ratio = cfg['data']['valid_from_train']
-    X_train, y_train, X_valid, y_valid = split_train_valid(
-        X_train_full, y_train_full, valid_ratio
-    )
+    X_train_split = X_train[:n_train_actual]
+    y_train_split = y_train[:n_train_actual]
+    X_valid = X_train[n_train_actual:]
+    y_valid = y_train[n_train_actual:]
     
-    # Compute normalization stats on train only
-    norm_stats = None
-    if cfg['data']['norm'] == 'zscore':
-        norm_stats = compute_norm_stats(X_train)
-        X_train = apply_norm(X_train, norm_stats)
-        X_valid = apply_norm(X_valid, norm_stats)
-        X_test = apply_norm(X_test, norm_stats)
+    # Compute normalization stats from training data only
+    # Shape: (N, T, F) -> compute mean/std across N and T
+    mu = X_train_split.reshape(-1, X_train_split.shape[-1]).mean(axis=0)
+    sd = X_train_split.reshape(-1, X_train_split.shape[-1]).std(axis=0)
+    
+    # Avoid division by zero
+    sd = np.where(sd < 1e-8, 1.0, sd)
+    
+    # Normalize all splits
+    X_train_norm = (X_train_split - mu) / sd
+    X_valid_norm = (X_valid - mu) / sd
+    X_test_norm = (X_test - mu) / sd
     
     # Create datasets
-    train_dataset = SeqDataset(X_train, y_train)
-    val_dataset = SeqDataset(X_valid, y_valid)
-    test_dataset = SeqDataset(X_test, y_test)
+    train_dataset = SeqDataset(X_train_norm, y_train_split)
+    val_dataset = SeqDataset(X_valid_norm, y_valid)
+    test_dataset = SeqDataset(X_test_norm, y_test)
     
     # Create dataloaders
-    batch_size = cfg['train']['batch_size']
-    shuffle_train = cfg['data']['shuffle_train']
-    
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=shuffle_train,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True
     )
-    
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True
     )
-    
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True
     )
+    
+    # Store normalization stats
+    norm_stats = {
+        'mu': mu.tolist(),
+        'sd': sd.tolist()
+    }
+    
+    input_dim = X_train.shape[-1]
     
     return train_loader, val_loader, test_loader, norm_stats, input_dim

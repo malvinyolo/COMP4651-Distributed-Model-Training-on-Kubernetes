@@ -1,69 +1,64 @@
-"""
-Utils: seeding, device selection, timing, logging
-"""
+"""Utilities: seeding, device selection, timing, logging."""
 import random
 import numpy as np
 import torch
-from datetime import datetime
 import time
+from datetime import datetime
+from typing import Optional
 
 
 def seed_everything(seed: int) -> None:
-    """Set seeds for python, numpy, and torch for reproducibility."""
+    """Set seed for reproducibility across all random generators."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-    # Make CUDA operations deterministic
+    torch.cuda.manual_seed_all(seed)
+    # For deterministic behavior (may reduce performance)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
 
-def get_device(pref: str) -> torch.device:
+def get_device(pref: str = "auto") -> str:
     """
-    Get torch device based on preference.
+    Get device string based on preference.
     
     Args:
-        pref: "cpu", "cuda", or "auto" (uses cuda if available)
+        pref: 'auto', 'cpu', 'cuda', or 'mps'
     
     Returns:
-        torch.device
+        Device string: 'cuda', 'mps', or 'cpu'
     """
-    if pref == "auto":
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if pref == "cpu":
+        return "cpu"
     elif pref == "cuda":
-        if not torch.cuda.is_available():
-            raise RuntimeError("CUDA requested but not available")
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
-    return device
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    elif pref == "mps":
+        return "mps" if torch.backends.mps.is_available() else "cpu"
+    else:  # auto
+        if torch.cuda.is_available():
+            return "cuda"
+        elif torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
 
 
 class Timer:
-    """Simple context manager for timing blocks."""
+    """Context manager for timing code blocks."""
     
-    def __init__(self, name: str = ""):
+    def __init__(self, name: Optional[str] = None):
         self.name = name
-        self.start_time = None
-        self.elapsed = None
+        self.elapsed = 0.0
     
     def __enter__(self):
-        self.start_time = time.time()
+        self.start = time.perf_counter()
         return self
     
     def __exit__(self, *args):
-        self.elapsed = time.time() - self.start_time
-        if self.name:
-            log(f"{self.name} took {self.elapsed:.2f}s")
-    
-    def __str__(self):
-        return f"{self.elapsed:.2f}s" if self.elapsed else "N/A"
+        self.end = time.perf_counter()
+        self.elapsed = self.end - self.start
 
 
 def log(msg: str) -> None:
-    """Simple print with timestamp."""
+    """Print timestamped message."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {msg}")

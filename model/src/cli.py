@@ -1,371 +1,161 @@
-"""
-CLI: Single entrypoint for training and evaluation
-"""
+"""Command-line interface for training and evaluation."""
 import argparse
 import os
-import yaml
-from copy import deepcopy
+import sys
+import torch
 
-from utils import seed_everything, get_device, log, Timer
-from datamod import build_dataloaders
-from models import LSTMClassifier, GRUClassifier
-from train import fit, test
-from artifacts import (
-    make_run_dir,
-    save_state_dict,
-    save_json,
-    save_yaml,
-    save_confusion
-)
-from metrics import bin_metrics
-
-
-# Default configuration
-DEFAULT_CONFIG = {
-    'data': {
-        'npz_path': '/mnt/data/sp500_classification.npz',
-        'valid_from_train': 0.1,
-        'shuffle_train': False,
-        'norm': 'zscore'
-    },
-    'model': {
-        'kind': 'lstm',
-        'input_dim': None,
-        'hidden': 64,
-        'layers': 1,
-        'dropout': 0.1
-    },
-    'train': {
-        'epochs': 25,
-        'batch_size': 64,
-        'lr': 1.0e-3,
-        'weight_decay': 0.0,
-        'early_stop_metric': 'auc',
-        'early_stop_patience': 5,
-        'seed': 42,
-        'device': 'auto'
-    },
-    'eval': {
-        'threshold': 0.5,
-        'save_cm': True
-    },
-    'io': {
-        'save_dir': './outputs',
-        'run_name': None
-    }
-}
-
-
-def load_config(config_path: str = None, overrides: dict = None) -> dict:
-    """
-    Load configuration from file and apply overrides.
-    
-    Args:
-        config_path: Optional path to YAML config file
-        overrides: Optional dictionary of overrides
-    
-    Returns:
-        Resolved configuration dictionary
-    """
-    # Start with defaults
-    cfg = deepcopy(DEFAULT_CONFIG)
-    
-    # Load from file if provided
-    if config_path and os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            file_cfg = yaml.safe_load(f)
-        
-        # Deep merge
-        for section, values in file_cfg.items():
-            if section in cfg and isinstance(values, dict):
-                cfg[section].update(values)
-            else:
-                cfg[section] = values
-    
-    # Apply CLI overrides
-    if overrides:
-        for key, value in overrides.items():
-            # Parse nested keys like "model.kind" or "train.epochs"
-            if '.' in key:
-                section, param = key.split('.', 1)
-                if section in cfg:
-                    cfg[section][param] = value
-            else:
-                cfg[key] = value
-    
-    return cfg
+from .utils import seed_everything, get_device, log
+from .datamod import build_dataloaders
+from .models import MLPRegressor
+from .train import fit, test
+from .metrics import regression_metrics
+from .artifacts import make_run_dir, save_all_artifacts
 
 
 def parse_args():
-    """Parse command line arguments."""
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description='Train binary classifier on SP500 sequences'
+        description="Train simple MLP regressor on SP500 data"
     )
     
-    # Config file
-    parser.add_argument(
-        '--config',
-        type=str,
-        default=None,
-        help='Path to YAML config file'
-    )
-    
-    # Common overrides
+    # Data
     parser.add_argument(
         '--npz_path',
         type=str,
-        default=None,
-        help='Path to NPZ data file'
+        default='/mnt/data/sp500_regression.npz',
+        help='Path to sp500_regression.npz'
     )
     
-    parser.add_argument(
-        '--model',
-        type=str,
-        choices=['lstm', 'gru'],
-        default=None,
-        help='Model type'
-    )
+    # Training hyperparameters
+    parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
+    parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
+    parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
+    parser.add_argument('--patience', type=int, default=5, help='Early stopping patience')
     
-    parser.add_argument(
-        '--epochs',
-        type=int,
-        default=None,
-        help='Number of training epochs'
-    )
+    # Model hyperparameters
+    parser.add_argument('--hidden_dim', type=int, default=64, help='Hidden dimension')
+    parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate')
     
-    parser.add_argument(
-        '--batch_size',
-        type=int,
-        default=None,
-        help='Batch size'
-    )
-    
-    parser.add_argument(
-        '--lr',
-        type=float,
-        default=None,
-        help='Learning rate'
-    )
-    
-    parser.add_argument(
-        '--hidden',
-        type=int,
-        default=None,
-        help='Hidden layer size'
-    )
-    
-    parser.add_argument(
-        '--layers',
-        type=int,
-        default=None,
-        help='Number of recurrent layers'
-    )
-    
-    parser.add_argument(
-        '--seed',
-        type=int,
-        default=None,
-        help='Random seed'
-    )
-    
+    # System
     parser.add_argument(
         '--device',
         type=str,
-        choices=['cpu', 'cuda', 'auto'],
-        default=None,
+        default='auto',
+        choices=['auto', 'cpu', 'cuda', 'mps'],
         help='Device to use'
     )
+    parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--save_dir', type=str, default='./outputs', help='Output directory')
     
-    parser.add_argument(
-        '--run_name',
-        type=str,
-        default=None,
-        help='Custom run name'
-    )
+    # Data options
+    parser.add_argument('--valid_ratio', type=float, default=0.1, help='Validation split ratio')
+    parser.add_argument('--shuffle_train', action='store_true', help='Shuffle training data')
     
     return parser.parse_args()
 
 
 def main():
     """Main training pipeline."""
-    
-    # Parse arguments
     args = parse_args()
     
-    # Build overrides from CLI args
-    overrides = {}
-    if args.npz_path:
-        overrides['data.npz_path'] = args.npz_path
-    if args.model:
-        overrides['model.kind'] = args.model
-    if args.epochs:
-        overrides['train.epochs'] = args.epochs
-    if args.batch_size:
-        overrides['train.batch_size'] = args.batch_size
-    if args.lr:
-        overrides['train.lr'] = args.lr
-    if args.hidden:
-        overrides['model.hidden'] = args.hidden
-    if args.layers:
-        overrides['model.layers'] = args.layers
-    if args.seed:
-        overrides['train.seed'] = args.seed
-    if args.device:
-        overrides['train.device'] = args.device
-    if args.run_name:
-        overrides['io.run_name'] = args.run_name
-    
-    # Load and resolve config
-    cfg = load_config(args.config, overrides)
-    
-    # Set random seed
-    seed_everything(cfg['train']['seed'])
-    log(f"Set random seed: {cfg['train']['seed']}")
+    # Set seed
+    seed_everything(args.seed)
+    log(f"Set random seed to {args.seed}")
     
     # Get device
-    device = get_device(cfg['train']['device'])
+    device = get_device(args.device)
     log(f"Using device: {device}")
     
+    # Check if data file exists
+    if not os.path.exists(args.npz_path):
+        log(f"ERROR: Data file not found: {args.npz_path}")
+        sys.exit(1)
+    
+    # Load data
+    log(f"Loading data from {args.npz_path}...")
+    train_loader, val_loader, test_loader, norm_stats, input_dim = build_dataloaders(
+        npz_path=args.npz_path,
+        valid_ratio=args.valid_ratio,
+        batch_size=args.batch_size,
+        shuffle_train=args.shuffle_train
+    )
+    log(f"Data loaded. Input dim: {input_dim}, "
+        f"Train batches: {len(train_loader)}, "
+        f"Val batches: {len(val_loader)}, "
+        f"Test batches: {len(test_loader)}")
+    
     # Create run directory
-    run_dir = make_run_dir(cfg['io']['save_dir'], cfg['io']['run_name'])
+    run_dir = make_run_dir(args.save_dir)
     log(f"Run directory: {run_dir}")
     
-    # Build dataloaders
-    log("Loading data and building dataloaders...")
-    with Timer("Data loading"):
-        train_loader, val_loader, test_loader, norm_stats, input_dim = build_dataloaders(cfg)
+    # Initialize model
+    model = MLPRegressor(
+        input_dim=input_dim,
+        hidden_dim=args.hidden_dim,
+        dropout=args.dropout
+    ).to(device)
     
-    log(f"  Train batches: {len(train_loader)}")
-    log(f"  Val batches: {len(val_loader)}")
-    log(f"  Test batches: {len(test_loader)}")
-    log(f"  Input dim: {input_dim}")
-    
-    # Set input_dim in config
-    if cfg['model']['input_dim'] is None:
-        cfg['model']['input_dim'] = input_dim
-    else:
-        assert cfg['model']['input_dim'] == input_dim, \
-            f"Config input_dim {cfg['model']['input_dim']} != data input_dim {input_dim}"
-    
-    # Build model
-    log(f"Building {cfg['model']['kind'].upper()} model...")
-    if cfg['model']['kind'] == 'lstm':
-        model = LSTMClassifier(
-            input_dim=cfg['model']['input_dim'],
-            hidden=cfg['model']['hidden'],
-            layers=cfg['model']['layers'],
-            dropout=cfg['model']['dropout']
-        )
-    elif cfg['model']['kind'] == 'gru':
-        model = GRUClassifier(
-            input_dim=cfg['model']['input_dim'],
-            hidden=cfg['model']['hidden'],
-            layers=cfg['model']['layers'],
-            dropout=cfg['model']['dropout']
-        )
-    else:
-        raise ValueError(f"Unknown model kind: {cfg['model']['kind']}")
-    
-    model = model.to(device)
-    
-    # Count parameters
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    log(f"Model parameters: {n_params:,}")
+    log(f"Model initialized. Parameters: {n_params:,}")
     
-    # Train
-    log("\n" + "="*60)
-    log("TRAINING")
-    log("="*60)
+    # Training configuration
+    config = {
+        'npz_path': args.npz_path,
+        'epochs': args.epochs,
+        'batch_size': args.batch_size,
+        'lr': args.lr,
+        'patience': args.patience,
+        'hidden_dim': args.hidden_dim,
+        'dropout': args.dropout,
+        'device': device,
+        'seed': args.seed,
+        'valid_ratio': args.valid_ratio,
+        'shuffle_train': args.shuffle_train,
+        'n_params': n_params
+    }
     
-    checkpoint_path = os.path.join(run_dir, 'best.ckpt')
-    
-    with Timer("Training"):
-        _, history = fit(
-            model=model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            cfg=cfg,
-            device=device,
-            save_path=checkpoint_path
-        )
-    
-    # Evaluate on validation set with best checkpoint
-    log("\n" + "="*60)
-    log("VALIDATION (BEST CHECKPOINT)")
-    log("="*60)
-    
-    val_results = test(
+    # Train model
+    log("=" * 60)
+    ckpt_path, timing_info = fit(
         model=model,
-        test_loader=val_loader,
-        checkpoint_path=checkpoint_path,
-        device=device,
-        threshold=cfg['eval']['threshold']
+        train_loader=train_loader,
+        val_loader=val_loader,
+        cfg=config,
+        save_dir=run_dir,
+        device=device
     )
+    log("=" * 60)
     
-    # Test
-    log("\n" + "="*60)
-    log("TEST")
-    log("="*60)
+    # Evaluate on validation set (with best checkpoint)
+    log("Evaluating on validation set...")
+    _, y_val_true, y_val_pred = test(model, val_loader, ckpt_path, device)
+    val_metrics = regression_metrics(y_val_true, y_val_pred)
     
-    test_results = test(
-        model=model,
-        test_loader=test_loader,
-        checkpoint_path=checkpoint_path,
-        device=device,
-        threshold=cfg['eval']['threshold']
+    # Evaluate on test set
+    log("Evaluating on test set...")
+    _, y_test_true, y_test_pred = test(model, test_loader, ckpt_path, device)
+    test_metrics = regression_metrics(y_test_true, y_test_pred)
+    
+    # Save all artifacts
+    save_all_artifacts(
+        run_dir=run_dir,
+        config=config,
+        norm_stats=norm_stats,
+        val_metrics=val_metrics,
+        test_metrics=test_metrics,
+        timing_info=timing_info
     )
-    
-    # Save artifacts
-    log("\n" + "="*60)
-    log("SAVING ARTIFACTS")
-    log("="*60)
-    
-    # Save config
-    config_path = os.path.join(run_dir, 'config.yaml')
-    save_yaml(cfg, config_path)
-    log(f"Saved config: {config_path}")
-    
-    # Save normalization stats
-    if norm_stats:
-        norm_path = os.path.join(run_dir, 'norm_stats.json')
-        save_json(norm_stats, norm_path)
-        log(f"Saved norm stats: {norm_path}")
-    
-    # Save validation metrics
-    val_metrics_path = os.path.join(run_dir, 'metrics_valid.json')
-    save_json(val_results['metrics'], val_metrics_path)
-    log(f"Saved validation metrics: {val_metrics_path}")
-    
-    # Save test metrics
-    test_metrics_path = os.path.join(run_dir, 'metrics_test.json')
-    save_json(test_results['metrics'], test_metrics_path)
-    log(f"Saved test metrics: {test_metrics_path}")
-    
-    # Save confusion matrices
-    if cfg['eval']['save_cm']:
-        val_cm_path = os.path.join(run_dir, 'confusion_matrix_valid.png')
-        save_confusion(val_results['confusion_matrix'], val_cm_path)
-        log(f"Saved validation confusion matrix: {val_cm_path}")
-        
-        test_cm_path = os.path.join(run_dir, 'confusion_matrix_test.png')
-        save_confusion(test_results['confusion_matrix'], test_cm_path)
-        log(f"Saved test confusion matrix: {test_cm_path}")
     
     # Print summary
-    log("\n" + "="*60)
-    log("SUMMARY")
-    log("="*60)
-    
-    val_m = val_results['metrics']
-    test_m = test_results['metrics']
-    
-    log(f"VAL:  acc={val_m['acc']:.2f} auc={val_m['auc']:.2f} "
-        f"prec={val_m['prec']:.2f} rec={val_m['rec']:.2f}")
-    log(f"TEST: acc={test_m['acc']:.2f} auc={test_m['auc']:.2f} "
-        f"prec={test_m['prec']:.2f} rec={test_m['rec']:.2f}")
+    log("=" * 60)
+    log("RESULTS SUMMARY")
+    log("=" * 60)
+    log(f"VAL:  MSE={val_metrics['mse']:.6f}  MAE={val_metrics['mae']:.4f}  R²={val_metrics['r2']:.4f}")
+    log(f"TEST: MSE={test_metrics['mse']:.6f}  MAE={test_metrics['mae']:.4f}  R²={test_metrics['r2']:.4f}")
+    log(f"Time/epoch: {timing_info['mean_time_per_epoch']:.2f}s (±{timing_info['std_time_per_epoch']:.2f})")
+    log(f"Total time: {timing_info['total_time_sec']:.1f}s ({timing_info['total_epochs']} epochs)")
     log(f"Saved → {run_dir}")
-    
-    log("\n✓ Done!")
+    log("=" * 60)
 
 
 if __name__ == '__main__':

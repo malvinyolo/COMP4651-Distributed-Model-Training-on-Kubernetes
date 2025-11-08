@@ -1,26 +1,20 @@
-"""
-Artifacts: save/load checkpoints, metrics, configs, confusion matrices
-"""
+"""Artifact saving: checkpoints, metrics, configs, normalization stats."""
 import os
 import json
 import yaml
 import torch
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib
+import torch.nn as nn
 from datetime import datetime
-
-# Use non-interactive backend for saving plots
-matplotlib.use('Agg')
+from typing import Dict, Any, Optional
 
 
-def make_run_dir(save_root: str, run_name: str | None) -> str:
+def make_run_dir(save_root: str, run_name: Optional[str] = None) -> str:
     """
-    Create run directory with timestamp if run_name is None.
+    Create a timestamped run directory.
     
     Args:
-        save_root: Root directory for outputs
-        run_name: Optional custom run name
+        save_root: Root directory for outputs (e.g., 'outputs')
+        run_name: Optional custom run name (otherwise uses timestamp)
     
     Returns:
         Path to created run directory
@@ -34,89 +28,76 @@ def make_run_dir(save_root: str, run_name: str | None) -> str:
     return run_dir
 
 
-def save_state_dict(model: torch.nn.Module, path: str) -> None:
+def save_state_dict(model: nn.Module, path: str) -> None:
     """
-    Save model state_dict.
+    Save model state dict.
     
     Args:
         model: PyTorch model
-        path: Save path
+        path: Path to save checkpoint
     """
     torch.save(model.state_dict(), path)
 
 
-def save_json(obj: dict, path: str) -> None:
+def save_json(obj: Any, path: str) -> None:
     """
-    Save dictionary as JSON.
+    Save object as JSON.
     
     Args:
-        obj: Dictionary to save
-        path: Save path
-    """
-    # Convert numpy types to native Python types
-    def convert(o):
-        if isinstance(o, np.integer):
-            return int(o)
-        elif isinstance(o, np.floating):
-            return float(o)
-        elif isinstance(o, np.ndarray):
-            return o.tolist()
-        elif isinstance(o, dict):
-            return {k: convert(v) for k, v in o.items()}
-        elif isinstance(o, list):
-            return [convert(item) for item in o]
-        return o
-    
-    obj_converted = convert(obj)
-    with open(path, 'w') as f:
-        json.dump(obj_converted, f, indent=2)
-
-
-def save_yaml(obj: dict, path: str) -> None:
-    """
-    Save dictionary as YAML.
-    
-    Args:
-        obj: Dictionary to save
-        path: Save path
+        obj: Object to serialize (must be JSON-serializable)
+        path: Path to save JSON file
     """
     with open(path, 'w') as f:
-        yaml.dump(obj, f, default_flow_style=False, sort_keys=False)
+        json.dump(obj, f, indent=2)
 
 
-def save_confusion(cm: np.ndarray, path: str, labels=("0", "1")) -> None:
+def save_yaml(obj: Any, path: str) -> None:
     """
-    Save confusion matrix as PNG heatmap.
+    Save object as YAML.
     
     Args:
-        cm: 2x2 confusion matrix
-        path: Save path
-        labels: Class labels
+        obj: Object to serialize
+        path: Path to save YAML file
     """
-    fig, ax = plt.subplots(figsize=(6, 5))
+    with open(path, 'w') as f:
+        yaml.dump(obj, f, default_flow_style=False)
+
+
+def save_all_artifacts(
+    run_dir: str,
+    config: Dict,
+    norm_stats: Dict,
+    val_metrics: Dict,
+    test_metrics: Dict,
+    timing_info: Dict
+) -> None:
+    """
+    Save all artifacts for a training run.
     
-    im = ax.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-    ax.figure.colorbar(im, ax=ax)
+    Args:
+        run_dir: Directory to save artifacts
+        config: Training configuration
+        norm_stats: Normalization statistics
+        val_metrics: Validation metrics
+        test_metrics: Test metrics
+        timing_info: Timing information
+    """
+    # Save config
+    config_path = os.path.join(run_dir, 'config.yaml')
+    save_yaml(config, config_path)
     
-    ax.set(xticks=np.arange(cm.shape[1]),
-           yticks=np.arange(cm.shape[0]),
-           xticklabels=labels,
-           yticklabels=labels,
-           ylabel='True label',
-           xlabel='Predicted label',
-           title='Confusion Matrix')
+    # Save normalization stats
+    norm_path = os.path.join(run_dir, 'norm_stats.json')
+    save_json(norm_stats, norm_path)
     
-    # Rotate tick labels
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    # Save validation metrics
+    val_metrics_path = os.path.join(run_dir, 'metrics_valid.json')
+    save_json(val_metrics, val_metrics_path)
     
-    # Add text annotations
-    thresh = cm.max() / 2.0
-    for i in range(cm.shape[0]):
-        for j in range(cm.shape[1]):
-            ax.text(j, i, format(cm[i, j], 'd'),
-                   ha="center", va="center",
-                   color="white" if cm[i, j] > thresh else "black")
+    # Save test metrics
+    test_metrics_path = os.path.join(run_dir, 'metrics_test.json')
+    save_json(test_metrics, test_metrics_path)
     
-    fig.tight_layout()
-    plt.savefig(path, dpi=150, bbox_inches='tight')
-    plt.close(fig)
+    # Save timing info
+    timing_path = os.path.join(run_dir, 'timing.json')
+    save_json(timing_info, timing_path)
