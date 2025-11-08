@@ -2,7 +2,8 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Optional
+import os
 
 
 class SeqDataset(Dataset):
@@ -25,17 +26,25 @@ class SeqDataset(Dataset):
 
 
 def build_dataloaders(
-    npz_path: str,
+    npz_path: Optional[str] = None,
+    stock_ticker: Optional[str] = None,
+    data_dir: str = "../data-pipeline/data/processed",
     valid_ratio: float = 0.1,
     batch_size: int = 64,
     shuffle_train: bool = False,
     num_workers: int = 0
-) -> Tuple[DataLoader, DataLoader, DataLoader, Dict[str, list], int]:
+) -> Tuple[DataLoader, DataLoader, DataLoader, Dict[str, list], int, str]:
     """
     Load NPZ data, split validation, normalize, and create DataLoaders.
     
+    Supports two modes:
+    1. Direct path: Use npz_path to load a specific file (e.g., sp500_regression.npz)
+    2. Stock ticker: Use stock_ticker to load individual stock data (e.g., 'AAPL')
+    
     Args:
-        npz_path: Path to sp500_regression.npz
+        npz_path: Direct path to NPZ file (takes precedence if provided)
+        stock_ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT'). Used if npz_path is None.
+        data_dir: Base directory for data files (used with stock_ticker)
         valid_ratio: Fraction of training data to use for validation (from tail)
         batch_size: Batch size for all loaders
         shuffle_train: Whether to shuffle training data
@@ -47,12 +56,32 @@ def build_dataloaders(
         test_loader: Test DataLoader
         norm_stats: Dict with 'mu' and 'sd' (lists) computed from train data only
         input_dim: Feature dimension (X.shape[-1])
+        data_source: String describing the data source (for logging)
     """
+    # Determine data source
+    if npz_path is not None:
+        # Direct path mode
+        if not os.path.exists(npz_path):
+            raise FileNotFoundError(f"NPZ file not found: {npz_path}")
+        data_source = os.path.basename(npz_path)
+    elif stock_ticker is not None:
+        # Stock ticker mode
+        stock_ticker = stock_ticker.upper()
+        npz_path = os.path.join(data_dir, "classification", f"{stock_ticker}.npz")
+        if not os.path.exists(npz_path):
+            raise FileNotFoundError(
+                f"Stock data not found: {npz_path}\n"
+                f"Available stocks: Check {os.path.join(data_dir, 'classification')} directory"
+            )
+        data_source = f"{stock_ticker} stock"
+    else:
+        raise ValueError("Either npz_path or stock_ticker must be provided")
+    
     # Load data
     data = np.load(npz_path, allow_pickle=False)
-    X_train = data['X_train']  # (N_train, 60, 1)
+    X_train = data['X_train']  # (N_train, T, F)
     y_train = data['y_train']  # (N_train,)
-    X_test = data['X_test']    # (N_test, 60, 1)
+    X_test = data['X_test']    # (N_test, T, F)
     y_test = data['y_test']    # (N_test,)
     
     # Split validation from tail of training data (chronological)
@@ -114,4 +143,4 @@ def build_dataloaders(
     
     input_dim = X_train.shape[-1]
     
-    return train_loader, val_loader, test_loader, norm_stats, input_dim
+    return train_loader, val_loader, test_loader, norm_stats, input_dim, data_source

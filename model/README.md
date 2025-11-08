@@ -1,82 +1,106 @@
-# Model: S&P 500 Regression# Model Training Package
+# Model: Stock Time-Series Regression
 
+Simple MLP regressor for benchmarking training performance on time-series regression for individual stocks and market indices.
 
+## 🎯 Purpose
 
-Simple MLP regressor for benchmarking training performance on time-series regression.Binary classification model for S&P 500 T+1 direction prediction using pre-sequenced data.
+Train a baseline regression model to predict next-day normalized stock values. This serves as a benchmark for comparing:
+- Single-machine training performance
+- Distributed training (DDP) scalability
+- Kubernetes cluster efficiency
+- Performance across different stocks
 
+## 🏗️ Architecture
 
-
-## 🎯 Purpose## Structure
-
-
-
-Train a baseline regression model to predict next-day normalized S&P 500 values. This serves as a benchmark for comparing:```
-
-- Single-machine training performancemodel/
-
-- Distributed training (DDP) scalability├── src/
-
-- Kubernetes cluster efficiency│   ├── cli.py          # Main entrypoint
-
-│   ├── datamod.py      # Data loading and preprocessing
-
-## 🏗️ Architecture│   ├── models.py       # LSTM and GRU classifiers
-
-│   ├── train.py        # Training and evaluation loops
-
-**MLPRegressor**: Simple feedforward network│   ├── metrics.py      # Metrics computation
-
-- Input: 60 timesteps × 1 feature (normalized prices)│   ├── artifacts.py    # Checkpoint and artifact management
-
-- Architecture:│   └── utils.py        # Utilities (seeding, device, logging)
-
-  1. Temporal average pooling├── outputs/            # Training run outputs
-
-  2. Linear(1, hidden_dim) → ReLU → Dropout└── requirements.txt    # Dependencies
-
-  3. Linear(hidden_dim, 1) → Output```
-
+**MLPRegressor**: Simple feedforward network
+- Input: 60 timesteps × F features (normalized prices/indicators)
+- Architecture:
+  1. Temporal average pooling
+  2. Linear(F, hidden_dim) → ReLU → Dropout
+  3. Linear(hidden_dim, 1) → Output
 - Loss: MSE (Mean Squared Error)
+- Optimizer: Adam
 
-- Optimizer: Adam## Data Contract
+## 📂 Project Structure
 
-
-
-## 📂 Project StructureExpects NPZ file with:
-
-- `X_train`: shape `(N_train, T, F)` float32
-
-```- `y_train`: shape `(N_train,)` int {0,1}
-
-model/- `X_test`: shape `(N_test, T, F)` float32
-
-├── src/- `y_test`: shape `(N_test,)` int {0,1}
-
+```
+model/
+├── src/
 │   ├── datamod.py      # Data loading, normalization, DataLoaders
-
-│   ├── models.py       # MLPRegressor architectureWhere:
-
-│   ├── train.py        # Training/validation/test loops- `N`: number of samples
-
-│   ├── metrics.py      # MSE, MAE, R² computation- `T`: sequence length (e.g., 60)
-
-│   ├── artifacts.py    # Save checkpoints and configs- `F`: number of features (e.g., 1)
-
+│   ├── models.py       # MLPRegressor architecture
+│   ├── train.py        # Training/validation/test loops
+│   ├── metrics.py      # MSE, MAE, R² computation
+│   ├── artifacts.py    # Save checkpoints and configs
 │   ├── utils.py        # Utilities (seeding, timing, device)
-
-│   └── cli.py          # Command-line interface## Installation
-
+│   └── cli.py          # Command-line interface
 ├── outputs/            # Training artifacts (auto-created)
-
-│   └── run_*/          # Timestamped run directories```bash
-
-│       ├── best.ckptcd model
-
-│       ├── metrics_valid.jsonpip install -r requirements.txt
-
-│       ├── metrics_test.json```
-
+│   └── run_*/          # Timestamped run directories
+│       ├── best.ckpt
+│       ├── metrics_valid.json
+│       ├── metrics_test.json
 │       ├── config.yaml
+│       ├── norm_stats.json
+│       └── timing.json
+├── train_all_stocks.py # Script to train all stocks sequentially
+├── requirements.txt
+└── README.md           # This file
+```
+
+## 🚀 Usage
+
+### Installation
+
+```bash
+cd model
+pip install -r requirements.txt
+```
+
+### Training Options
+
+#### Option 1: Train on Individual Stock
+
+```bash
+# Train on Apple (AAPL)
+python -m src.cli --stock AAPL
+
+# Train on Microsoft with custom hyperparameters
+python -m src.cli \
+    --stock MSFT \
+    --epochs 50 \
+    --batch_size 128 \
+    --lr 1e-3 \
+    --hidden_dim 128
+```
+
+**Available Stocks:** AAPL, AMZN, JNJ, JPM, MSFT, TSLA, XOM
+
+#### Option 2: Train on Custom NPZ File
+
+```bash
+# Train on S&P 500 regression data
+python -m src.cli --npz_path ../data-pipeline/data/processed/sp500_regression.npz
+
+# Train with custom settings
+python -m src.cli \
+    --npz_path ../data-pipeline/data/processed/sp500_regression.npz \
+    --epochs 50 \
+    --batch_size 64 \
+    --lr 1e-3 \
+    --device cuda
+```
+
+#### Option 3: Train All Stocks Sequentially
+
+```bash
+# Train on all 7 stocks with default settings
+python train_all_stocks.py
+```
+
+This will:
+- Train on AAPL, AMZN, JNJ, JPM, MSFT, TSLA, XOM
+- Save outputs for each stock separately
+- Generate a summary report with all results
+
 
 │       ├── norm_stats.json## Usage
 

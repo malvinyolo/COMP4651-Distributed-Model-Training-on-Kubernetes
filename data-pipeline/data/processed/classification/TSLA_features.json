@@ -1,0 +1,11 @@
+{
+  "features": [
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume"
+  ],
+  "sequence_length": 60,
+  "classification_threshold": 0.001
+}

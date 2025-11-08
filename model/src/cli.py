@@ -15,15 +15,28 @@ from .artifacts import make_run_dir, save_all_artifacts
 def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Train simple MLP regressor on SP500 data"
+        description="Train simple MLP regressor on stock time-series data"
     )
     
-    # Data
-    parser.add_argument(
+    # Data - support both modes
+    data_group = parser.add_mutually_exclusive_group()
+    data_group.add_argument(
         '--npz_path',
         type=str,
-        default='/mnt/data/sp500_regression.npz',
-        help='Path to sp500_regression.npz'
+        default=None,
+        help='Direct path to NPZ file (e.g., sp500_regression.npz). Takes precedence over --stock.'
+    )
+    data_group.add_argument(
+        '--stock',
+        type=str,
+        default=None,
+        help='Stock ticker to train on (e.g., AAPL, MSFT, TSLA). Available: AAPL, AMZN, JNJ, JPM, MSFT, TSLA, XOM'
+    )
+    parser.add_argument(
+        '--data_dir',
+        type=str,
+        default='../data-pipeline/data/processed',
+        help='Base directory for data files (used with --stock)'
     )
     
     # Training hyperparameters
@@ -58,6 +71,14 @@ def main():
     """Main training pipeline."""
     args = parse_args()
     
+    # Validate data arguments
+    if args.npz_path is None and args.stock is None:
+        log("ERROR: Either --npz_path or --stock must be provided")
+        log("Examples:")
+        log("  python -m src.cli --stock AAPL")
+        log("  python -m src.cli --npz_path ../data-pipeline/data/processed/sp500_regression.npz")
+        sys.exit(1)
+    
     # Set seed
     seed_everything(args.seed)
     log(f"Set random seed to {args.seed}")
@@ -66,19 +87,24 @@ def main():
     device = get_device(args.device)
     log(f"Using device: {device}")
     
-    # Check if data file exists
-    if not os.path.exists(args.npz_path):
-        log(f"ERROR: Data file not found: {args.npz_path}")
-        sys.exit(1)
-    
     # Load data
-    log(f"Loading data from {args.npz_path}...")
-    train_loader, val_loader, test_loader, norm_stats, input_dim = build_dataloaders(
-        npz_path=args.npz_path,
-        valid_ratio=args.valid_ratio,
-        batch_size=args.batch_size,
-        shuffle_train=args.shuffle_train
-    )
+    if args.npz_path:
+        log(f"Loading data from {args.npz_path}...")
+    else:
+        log(f"Loading data for stock: {args.stock.upper()}...")
+    
+    try:
+        train_loader, val_loader, test_loader, norm_stats, input_dim, data_source = build_dataloaders(
+            npz_path=args.npz_path,
+            stock_ticker=args.stock,
+            data_dir=args.data_dir,
+            valid_ratio=args.valid_ratio,
+            batch_size=args.batch_size,
+            shuffle_train=args.shuffle_train
+        )
+    except FileNotFoundError as e:
+        log(f"ERROR: {e}")
+        sys.exit(1)
     log(f"Data loaded. Input dim: {input_dim}, "
         f"Train batches: {len(train_loader)}, "
         f"Val batches: {len(val_loader)}, "
@@ -100,7 +126,11 @@ def main():
     
     # Training configuration
     config = {
+        'data_source': data_source,
+        'stock_ticker': args.stock,
         'npz_path': args.npz_path,
+        'data_dir': args.data_dir,
+        'input_dim': input_dim,
         'epochs': args.epochs,
         'batch_size': args.batch_size,
         'lr': args.lr,
@@ -150,6 +180,7 @@ def main():
     log("=" * 60)
     log("RESULTS SUMMARY")
     log("=" * 60)
+    log(f"Data: {data_source} | Input features: {input_dim}")
     log(f"VAL:  MSE={val_metrics['mse']:.6f}  MAE={val_metrics['mae']:.4f}  R²={val_metrics['r2']:.4f}")
     log(f"TEST: MSE={test_metrics['mse']:.6f}  MAE={test_metrics['mae']:.4f}  R²={test_metrics['r2']:.4f}")
     log(f"Time/epoch: {timing_info['mean_time_per_epoch']:.2f}s (±{timing_info['std_time_per_epoch']:.2f})")
