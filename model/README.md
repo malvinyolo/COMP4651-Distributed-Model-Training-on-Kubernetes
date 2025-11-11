@@ -5,8 +5,8 @@ Simple MLP regressor for benchmarking training performance on time-series regres
 ## 🎯 Purpose
 
 Train a baseline regression model to predict next-day normalized stock values. This serves as a benchmark for comparing:
-- Single-machine training performance
-- Distributed training (DDP) scalability
+- **Single-machine training** performance
+- **Distributed Data Parallel (DDP)** training scalability  
 - Kubernetes cluster efficiency
 - Performance across different stocks
 
@@ -26,27 +26,38 @@ Train a baseline regression model to predict next-day normalized stock values. T
 ```
 model/
 ├── src/
-│   ├── datamod.py      # Data loading, normalization, DataLoaders
-│   ├── models.py       # MLPRegressor architecture
-│   ├── train.py        # Training/validation/test loops
-│   ├── metrics.py      # MSE, MAE, R² computation
-│   ├── artifacts.py    # Save checkpoints and configs
-│   ├── utils.py        # Utilities (seeding, timing, device)
-│   └── cli.py          # Command-line interface
-├── outputs/            # Training artifacts (auto-created)
-│   └── run_*/          # Timestamped run directories
-│       ├── best.ckpt
-│       ├── metrics_valid.json
-│       ├── metrics_test.json
-│       ├── config.yaml
-│       ├── norm_stats.json
-│       └── timing.json
-├── train_all_stocks.py # Script to train all stocks sequentially
+│   ├── single/              # Single-machine training
+│   │   ├── cli.py          # CLI entry point
+│   │   ├── train.py        # Training loops
+│   │   └── datamod.py      # Data loading (standard DataLoader)
+│   │
+│   ├── distributed/         # DDP training
+│   │   ├── cli.py          # DDP CLI entry point
+│   │   ├── train.py        # DDP training with gradient sync
+│   │   └── datamod.py      # DDP data loading (DistributedSampler)
+│   │
+│   ├── models.py           # Shared: MLPRegressor architecture
+│   ├── metrics.py          # Shared: MSE, MAE, R² computation
+│   ├── artifacts.py        # Shared: Save/load checkpoints
+│   └── utils.py            # Shared: Utilities (seeding, timing, device)
+│
+├── train_single.py         # Entry point: single-machine training
+├── train_ddp.py            # Entry point: DDP training
+├── train_all_stocks.py     # Batch: train all stocks (single-machine)
+├── train_all_stocks_ddp.py # Batch: train all stocks (DDP)
+├── compare_training.py     # Compare single-machine vs DDP
+│
+├── outputs/                # Training artifacts (auto-created)
+│   └── run_*/              # Timestamped run directories
+│
+├── TRAINING_GUIDE.md       # Comprehensive training guide
+├── ARCHITECTURE.md         # System architecture diagrams
+├── REORGANIZATION_SUMMARY.md  # Code reorganization details
 ├── requirements.txt
-└── README.md           # This file
+└── README.md               # This file
 ```
 
-## 🚀 Usage
+## 🚀 Quick Start
 
 ### Installation
 
@@ -55,16 +66,15 @@ cd model
 pip install -r requirements.txt
 ```
 
-### Training Options
+### Single-Machine Training
 
-#### Option 1: Train on Individual Stock
-
+Train on a specific stock:
 ```bash
 # Train on Apple (AAPL)
-python -m src.cli --stock AAPL
+python train_single.py --stock AAPL
 
 # Train on Microsoft with custom hyperparameters
-python -m src.cli \
+python train_single.py \
     --stock MSFT \
     --epochs 50 \
     --batch_size 128 \
@@ -74,32 +84,39 @@ python -m src.cli \
 
 **Available Stocks:** AAPL, AMZN, JNJ, JPM, MSFT, TSLA, XOM
 
-#### Option 2: Train on Custom NPZ File
-
+Train on S&P 500:
 ```bash
-# Train on S&P 500 regression data
-python -m src.cli --npz_path ../data-pipeline/data/processed/sp500_regression.npz
-
-# Train with custom settings
-python -m src.cli \
-    --npz_path ../data-pipeline/data/processed/sp500_regression.npz \
-    --epochs 50 \
-    --batch_size 64 \
-    --lr 1e-3 \
-    --device cuda
+python train_single.py --npz_path ../data-pipeline/data/processed/sp500_regression.npz
 ```
 
-#### Option 3: Train All Stocks Sequentially
+Train all stocks sequentially:
+```bash
+python train_all_stocks.py --epochs 50
+```
+
+### Distributed Training (DDP)
+
+Train on a specific stock with 2 GPUs:
+```bash
+python train_ddp.py --stock AAPL --epochs 50 --world_size 2
+```
+
+Train all stocks with DDP:
+```bash
+python train_all_stocks_ddp.py --epochs 50 --world_size 2
+```
+
+### Compare Single-Machine vs DDP
 
 ```bash
-# Train on all 7 stocks with default settings
-python train_all_stocks.py
+python compare_training.py --stock AAPL --epochs 10 --world_size 2
 ```
 
 This will:
-- Train on AAPL, AMZN, JNJ, JPM, MSFT, TSLA, XOM
-- Save outputs for each stock separately
-- Generate a summary report with all results
+- Run both single-machine and DDP training
+- Compare training time and speedup
+- Compare final metrics (MSE, MAE, R²)
+- Save results to JSON file
 
 
 │       ├── norm_stats.json## Usage

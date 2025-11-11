@@ -38,7 +38,7 @@ def train_stock(stock: str, config: dict) -> dict:
     print(f"{'='*80}\n")
     
     cmd = [
-        'python', '-m', 'src.cli',
+        'python', 'train_single.py',
         '--stock', stock,
         '--epochs', str(config['epochs']),
         '--batch_size', str(config['batch_size']),

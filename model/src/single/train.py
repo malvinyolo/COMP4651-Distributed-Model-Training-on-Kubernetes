@@ -1,12 +1,12 @@
-"""Training, validation, and testing loops."""
+"""Training, validation, and testing loops for single-machine training."""
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import numpy as np
 from typing import Tuple, Dict
 import os
-from .utils import Timer, log
-from .artifacts import save_state_dict
+from ..utils import Timer, log
+from ..artifacts import save_state_dict
 
 
 def train_one_epoch(

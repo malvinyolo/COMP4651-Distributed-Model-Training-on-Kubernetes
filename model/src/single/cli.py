@@ -1,15 +1,15 @@
-"""Command-line interface for training and evaluation."""
+"""Command-line interface for single-machine training."""
 import argparse
 import os
 import sys
 import torch
 
-from .utils import seed_everything, get_device, log
+from ..utils import seed_everything, get_device, log
 from .datamod import build_dataloaders
-from .models import MLPRegressor
+from ..models import MLPRegressor
 from .train import fit, test
-from .metrics import regression_metrics
-from .artifacts import make_run_dir, save_all_artifacts
+from ..metrics import regression_metrics
+from ..artifacts import make_run_dir, save_all_artifacts
 
 
 def parse_args():
