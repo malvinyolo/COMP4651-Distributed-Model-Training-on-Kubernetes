@@ -24,7 +24,7 @@ model/
 │
 ├── train_single.py          # Entry point: single-machine training
 ├── train_ddp.py             # Entry point: DDP training
-├── train_all_stocks.py      # Batch: train all 7 stocks (single-machine)
+├── train_all_stocks_single.py      # Batch: train all 7 stocks (single-machine)
 └── train_all_stocks_ddp.py  # Batch: train all 7 stocks (DDP)
 ```
 
@@ -44,7 +44,7 @@ python train_single.py --npz_path ../data-pipeline/data/processed/sp500_regressi
 
 Train on all 7 stocks:
 ```bash
-python train_all_stocks.py --epochs 50 --batch_size 64
+python train_all_stocks_single.py --epochs 50 --batch_size 64
 ```
 
 ### Distributed Training (DDP)
