@@ -107,7 +107,8 @@ def evaluate_ddp(
     loader: DataLoader,
     criterion: nn.Module,
     device: str,
-    rank: int
+    rank: int,
+    sync_loss: bool = True
 ) -> tuple:
     """
     Evaluate model on validation/test set.
@@ -119,6 +120,7 @@ def evaluate_ddp(
         criterion: Loss function
         device: Device
         rank: Process rank
+        sync_loss: If True, synchronize loss across all ranks via all_reduce
     
     Returns:
         avg_loss, y_true, y_pred (only rank 0 gets real data)
@@ -145,9 +147,11 @@ def evaluate_ddp(
     
     avg_loss = total_loss / n_batches if n_batches > 0 else 0.0
     
-    # Average loss across all ranks
-    loss_tensor = torch.tensor([avg_loss], device=device)
-    dist.all_reduce(loss_tensor, op=dist.ReduceOp.AVG)
+    # Optionally average loss across all ranks
+    if sync_loss:
+        loss_tensor = torch.tensor([avg_loss], device=device)
+        dist.all_reduce(loss_tensor, op=dist.ReduceOp.AVG)
+        avg_loss = loss_tensor.item()
     
     if rank == 0:
         y_true = np.concatenate(all_targets)
@@ -156,7 +160,7 @@ def evaluate_ddp(
         y_true = np.array([])
         y_pred = np.array([])
     
-    return loss_tensor.item(), y_true, y_pred
+    return avg_loss, y_true, y_pred
 
 
 def train_ddp(rank: int, world_size: int, cfg: Dict):
@@ -281,6 +285,9 @@ def train_ddp(rank: int, world_size: int, cfg: Dict):
                 log(f"Early stopping triggered after {epoch+1} epochs")
             break
     
+    # Synchronize all processes before test evaluation
+    dist.barrier()
+    
     # Final evaluation on test set (only rank 0)
     if rank == 0:
         log("\n" + "="*80)
@@ -291,13 +298,13 @@ def train_ddp(rank: int, world_size: int, cfg: Dict):
         ckpt_path = Path(cfg['save_dir']) / 'best.ckpt'
         model.module.load_state_dict(torch.load(ckpt_path, map_location=device))
         
-        # Validation metrics
-        val_loss, y_val_true, y_val_pred = evaluate_ddp(model, val_loader, criterion, device, rank)
+        # Validation metrics (no DDP sync needed, only rank 0 evaluates)
+        val_loss, y_val_true, y_val_pred = evaluate_ddp(model, val_loader, criterion, device, rank, sync_loss=False)
         val_metrics = regression_metrics(y_val_true, y_val_pred)
         val_metrics['loss'] = val_loss
         
-        # Test metrics
-        test_loss, y_test_true, y_test_pred = evaluate_ddp(model, test_loader, criterion, device, rank)
+        # Test metrics (no DDP sync needed, only rank 0 evaluates)
+        test_loss, y_test_true, y_test_pred = evaluate_ddp(model, test_loader, criterion, device, rank, sync_loss=False)
         test_metrics = regression_metrics(y_test_true, y_test_pred)
         test_metrics['loss'] = test_loss
         
@@ -340,6 +347,9 @@ def train_ddp(rank: int, world_size: int, cfg: Dict):
         log(f"World size: {world_size} GPUs/processes")
         log(f"Saved → {save_dir}")
         log("="*80)
+    
+    # Ensure all processes wait for rank 0 to finish
+    dist.barrier()
     
     # Cleanup
     cleanup_ddp()

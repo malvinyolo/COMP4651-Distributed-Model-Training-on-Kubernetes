@@ -4,8 +4,24 @@ import json
 import yaml
 import torch
 import torch.nn as nn
+import numpy as np
 from datetime import datetime
 from typing import Dict, Any, Optional
+from pathlib import Path
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles numpy arrays and other numeric types."""
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, (np.integer, np.int64, np.int32)):
+            return int(obj)
+        if isinstance(obj, (np.floating, np.float64, np.float32)):
+            return float(obj)
+        if isinstance(obj, Path):
+            return str(obj)
+        return super().default(obj)
 
 
 def make_run_dir(save_root: str, run_name: Optional[str] = None) -> str:
@@ -41,14 +57,14 @@ def save_state_dict(model: nn.Module, path: str) -> None:
 
 def save_json(obj: Any, path: str) -> None:
     """
-    Save object as JSON.
+    Save object as JSON with support for numpy arrays.
     
     Args:
-        obj: Object to serialize (must be JSON-serializable)
+        obj: Object to serialize (supports numpy arrays)
         path: Path to save JSON file
     """
     with open(path, 'w') as f:
-        json.dump(obj, f, indent=2)
+        json.dump(obj, f, indent=2, cls=NumpyEncoder)
 
 
 def save_yaml(obj: Any, path: str) -> None:

@@ -27,125 +27,152 @@ class SeqDataset(Dataset):
 
 
 def build_ddp_dataloaders(
-    npz_path: Optional[str] = None,
-    stock_ticker: Optional[str] = None,
-    data_dir: str = "../data-pipeline/data/processed",
-    valid_ratio: float = 0.1,
-    batch_size: int = 64,
-    num_workers: int = 0,
-    rank: int = 0,
-    world_size: int = 1
-) -> Tuple[DataLoader, DataLoader, DataLoader, Dict[str, list], int, str]:
-    """
-    Build dataloaders with DistributedSampler for DDP training.
+    npz_path=None,
+    stock_ticker=None,
+    rank=0,
+    world_size=2,
+    batch_size=64,
+    valid_ratio=0.1,
+    num_workers=0,
+    data_dir='../data-pipeline/data/processed'
+):
+    """Build train, validation, and test data loaders for DDP."""
+    from pathlib import Path
+    from torch.utils.data import TensorDataset, DataLoader, DistributedSampler
+    import torch
+    import numpy as np
     
-    Each rank gets a different subset of the training data.
-    Validation and test data are replicated (not distributed).
+    # Support both local and Docker paths
+    if Path(data_dir).exists():
+        base_path = Path(data_dir)
+    elif Path('/data').exists():
+        base_path = Path('/data')
+    else:
+        raise FileNotFoundError(f"Data directory not found: {data_dir}")
     
-    Args:
-        npz_path: Direct path to NPZ file (takes precedence if provided)
-        stock_ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT')
-        data_dir: Base directory for data files
-        valid_ratio: Fraction of training data to use for validation
-        batch_size: Batch size per rank
-        num_workers: Number of DataLoader workers per rank
-        rank: Process rank (0 to world_size-1)
-        world_size: Total number of processes
-    
-    Returns:
-        train_loader: Training DataLoader with DistributedSampler
-        val_loader: Validation DataLoader
-        test_loader: Test DataLoader
-        norm_stats: Normalization statistics
-        input_dim: Feature dimension
-        data_source: String describing the data source
-    """
-    # Determine data source
-    if npz_path is not None:
-        data_path = npz_path
-        if not os.path.exists(data_path):
-            raise FileNotFoundError(f"NPZ file not found: {data_path}")
-        data_source = os.path.basename(data_path)
-    elif stock_ticker is not None:
-        stock_ticker = stock_ticker.upper()
-        data_path = os.path.join(data_dir, "classification", f"{stock_ticker}.npz")
-        if not os.path.exists(data_path):
-            raise FileNotFoundError(
-                f"Stock data not found: {data_path}\n"
-                f"Available stocks: Check {os.path.join(data_dir, 'classification')} directory"
-            )
+    # Determine data source and load data
+    if npz_path:
+        data_path = Path(npz_path)
+        data_source = f"Direct NPZ: {data_path.name}"
+    elif stock_ticker:
+        data_path = base_path / 'classification' / f'{stock_ticker}.npz'
         data_source = f"{stock_ticker} stock"
     else:
-        raise ValueError("Either npz_path or stock_ticker must be provided")
+        raise ValueError("Must provide either npz_path or stock_ticker")
     
-    # Load data (all ranks load the same data)
+    # Load data
     data = np.load(data_path, allow_pickle=False)
     X_train = data['X_train']
     y_train = data['y_train']
     X_test = data['X_test']
     y_test = data['y_test']
     
-    # Split validation from tail of training data
-    n_train = len(X_train)
-    n_valid = int(n_train * valid_ratio)
-    n_train_actual = n_train - n_valid
+    # Get input dimension
+    input_dim = X_train.shape[-1]  # (N, T, F) -> F
     
-    X_train_split = X_train[:n_train_actual]
-    y_train_split = y_train[:n_train_actual]
-    X_valid = X_train[n_train_actual:]
-    y_valid = y_train[n_train_actual:]
+    # Split train into train and validation
+    n_valid = int(len(X_train) * valid_ratio)
+    n_train = len(X_train) - n_valid
     
-    # Compute normalization stats from training data only
-    mu = X_train_split.reshape(-1, X_train_split.shape[-1]).mean(axis=0)
-    sd = X_train_split.reshape(-1, X_train_split.shape[-1]).std(axis=0)
-    sd = np.where(sd < 1e-8, 1.0, sd)
+    X_train_split = X_train[:-n_valid]
+    y_train_split = y_train[:-n_valid]
+    X_valid = X_train[-n_valid:]
+    y_valid = y_train[-n_valid:]
     
-    # Normalize all splits
+    # Normalize using training statistics only
+    mu = X_train_split.mean(axis=(0, 1), keepdims=True)
+    sd = X_train_split.std(axis=(0, 1), keepdims=True) + 1e-8
+    
+    # Store normalization stats
+    norm_stats = {
+        'mean': mu,
+        'std': sd
+    }
+    
     X_train_norm = (X_train_split - mu) / sd
     X_valid_norm = (X_valid - mu) / sd
     X_test_norm = (X_test - mu) / sd
     
     # Create datasets
-    train_dataset = SeqDataset(X_train_norm, y_train_split)
-    val_dataset = SeqDataset(X_valid_norm, y_valid)
-    test_dataset = SeqDataset(X_test_norm, y_test)
+    train_dataset = TensorDataset(
+        torch.from_numpy(X_train_norm).float(),
+        torch.from_numpy(y_train_split).float()
+    )
+    valid_dataset = TensorDataset(
+        torch.from_numpy(X_valid_norm).float(),
+        torch.from_numpy(y_valid).float()
+    )
+    test_dataset = TensorDataset(
+        torch.from_numpy(X_test_norm).float(),
+        torch.from_numpy(y_test).float()
+    )
     
-    # Create DistributedSampler for training data
+    # Calculate appropriate batch sizes for small datasets
+    samples_per_rank_val = len(valid_dataset) // world_size
+    samples_per_rank_test = len(test_dataset) // world_size
+    
+    # Adjust batch size if necessary
+    val_batch_size = min(batch_size, max(1, samples_per_rank_val))
+    test_batch_size = min(batch_size, max(1, samples_per_rank_test))
+    
+    if rank == 0:
+        if val_batch_size < batch_size:
+            print(f"[WARNING] Reduced validation batch_size from {batch_size} to {val_batch_size} "
+                  f"(only {samples_per_rank_val} samples per rank)")
+        if test_batch_size < batch_size:
+            print(f"[WARNING] Reduced test batch_size from {batch_size} to {test_batch_size} "
+                  f"(only {samples_per_rank_test} samples per rank)")
+    
+    # Create DistributedSamplers
     train_sampler = DistributedSampler(
         train_dataset,
         num_replicas=world_size,
         rank=rank,
         shuffle=True,
-        seed=42
+        drop_last=False  # Keep all training samples
+    )
+    
+    # For validation/test: drop_last=True to ensure consistent batch counts
+    valid_sampler = DistributedSampler(
+        valid_dataset,
+        num_replicas=world_size,
+        rank=rank,
+        shuffle=False,
+        drop_last=True  # Drop incomplete batches
+    )
+    
+    test_sampler = DistributedSampler(
+        test_dataset,
+        num_replicas=world_size,
+        rank=rank,
+        shuffle=False,
+        drop_last=True  # Drop incomplete batches
     )
     
     # Create dataloaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        sampler=train_sampler,  # Use DistributedSampler
+        sampler=train_sampler,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=False  # Set to False for CPU
     )
     
-    # Validation and test loaders are NOT distributed
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
+    valid_loader = DataLoader(
+        valid_dataset,
+        batch_size=val_batch_size,  # Use adjusted size
+        sampler=valid_sampler,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=False
     )
     
     test_loader = DataLoader(
         test_dataset,
-        batch_size=batch_size,
-        shuffle=False,
+        batch_size=test_batch_size,  # Use adjusted size
+        sampler=test_sampler,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=False
     )
     
-    norm_stats = {'mu': mu.tolist(), 'sd': sd.tolist()}
-    input_dim = X_train.shape[-1]
-    
-    return train_loader, val_loader, test_loader, norm_stats, input_dim, data_source
+    # Return all 6 values expected by train.py
+    return train_loader, valid_loader, test_loader, norm_stats, input_dim, data_source
