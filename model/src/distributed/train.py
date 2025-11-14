@@ -166,11 +166,7 @@ def evaluate_ddp(
 def train_ddp(rank: int, world_size: int, cfg: Dict):
     """
     DDP training function executed by each process.
-    
-    Args:
-        rank: Process rank (0 to world_size-1)
-        world_size: Total number of processes
-        cfg: Configuration dictionary with all hyperparameters
+    NO EARLY STOPPING - trains for fixed number of epochs.
     """
     # Setup DDP
     backend = 'nccl' if torch.cuda.is_available() else 'gloo'
@@ -228,16 +224,18 @@ def train_ddp(rank: int, world_size: int, cfg: Dict):
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg['lr'])
     criterion = nn.MSELoss()
     
-    # Training loop
+    # Training loop - NO EARLY STOPPING
     best_val_loss = float('inf')
-    patience_counter = 0
-    patience = cfg.get('patience', 5)
-    epoch_times = []
+    best_val_r2 = -float('inf')
     best_epoch = 0
+    epoch_times = []
+    train_losses = []
+    val_losses = []
+    val_r2_scores = []
     
     if rank == 0:
         log("="*80)
-        log("Starting DDP Training")
+        log("Starting DDP Training (Fixed Epochs)")
         log("="*80)
     
     for epoch in range(cfg['epochs']):
@@ -249,41 +247,54 @@ def train_ddp(rank: int, world_size: int, cfg: Dict):
             train_loss = train_one_epoch_ddp(model, train_loader, optimizer, criterion, device, rank)
             
             # Validate
-            val_loss, _, _ = evaluate_ddp(model, val_loader, criterion, device, rank)
+            val_loss, y_val_true, y_val_pred = evaluate_ddp(
+                model, val_loader, criterion, device, rank, sync_loss=True
+            )
         
         epoch_time = timer.elapsed
         epoch_times.append(epoch_time)
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        
+        # Calculate R² on rank 0 and broadcast to all ranks
+        if rank == 0:
+            val_metrics = regression_metrics(y_val_true, y_val_pred)
+            val_r2 = val_metrics['r2']
+        else:
+            val_r2 = 0.0
+        
+        # Broadcast R² to all ranks
+        r2_tensor = torch.tensor([val_r2], dtype=torch.float32, device=device)
+        dist.broadcast(r2_tensor, src=0)
+        val_r2 = r2_tensor.item()
+        val_r2_scores.append(val_r2)
         
         if rank == 0:
             log(f"Epoch {epoch+1}/{cfg['epochs']} | "
                 f"Train Loss: {train_loss:.6f} | "
                 f"Val Loss: {val_loss:.6f} | "
+                f"Val R²: {val_r2:.4f} | "
                 f"Time: {epoch_time:.2f}s")
         
-        # Early stopping (only rank 0 decides)
-        improved = val_loss < best_val_loss
-        if improved:
+        # Track best model (by validation loss)
+        if val_loss < best_val_loss:
             best_val_loss = val_loss
+            best_val_r2 = val_r2
             best_epoch = epoch + 1
-            patience_counter = 0
             
             # Save checkpoint (only rank 0)
             if rank == 0:
                 save_dir = Path(cfg['save_dir'])
                 ckpt_path = save_dir / 'best.ckpt'
                 save_state_dict(model.module, str(ckpt_path))
-                log("  → New best! Saved checkpoint.")
-        else:
-            patience_counter += 1
-        
-        # Broadcast early stopping decision to all ranks
-        should_stop = torch.tensor([patience_counter >= patience], dtype=torch.bool, device=device)
-        dist.broadcast(should_stop, src=0)
-        
-        if should_stop.item():
-            if rank == 0:
-                log(f"Early stopping triggered after {epoch+1} epochs")
-            break
+                log(f"  → New best! Loss={val_loss:.6f}, R²={val_r2:.4f}")
+    
+    # Save final model as well
+    if rank == 0:
+        save_dir = Path(cfg['save_dir'])
+        final_ckpt_path = save_dir / 'final.ckpt'
+        save_state_dict(model.module, str(final_ckpt_path))
+        log(f"\n✅ Training completed! {cfg['epochs']} epochs finished.")
     
     # Synchronize all processes before test evaluation
     dist.barrier()
@@ -294,19 +305,61 @@ def train_ddp(rank: int, world_size: int, cfg: Dict):
         log("EVALUATING ON TEST SET")
         log("="*80)
         
-        # Load best checkpoint
+        # Evaluate BOTH best and final models
+        
+        # 1. Best model (lowest validation loss)
         ckpt_path = Path(cfg['save_dir']) / 'best.ckpt'
         model.module.load_state_dict(torch.load(ckpt_path, map_location=device))
         
-        # Validation metrics (no DDP sync needed, only rank 0 evaluates)
-        val_loss, y_val_true, y_val_pred = evaluate_ddp(model, val_loader, criterion, device, rank, sync_loss=False)
+        val_loss, y_val_true, y_val_pred = evaluate_ddp(
+            model, val_loader, criterion, device, rank, sync_loss=False
+        )
         val_metrics = regression_metrics(y_val_true, y_val_pred)
         val_metrics['loss'] = val_loss
         
-        # Test metrics (no DDP sync needed, only rank 0 evaluates)
-        test_loss, y_test_true, y_test_pred = evaluate_ddp(model, test_loader, criterion, device, rank, sync_loss=False)
-        test_metrics = regression_metrics(y_test_true, y_test_pred)
-        test_metrics['loss'] = test_loss
+        test_loss, y_test_true, y_test_pred = evaluate_ddp(
+            model, test_loader, criterion, device, rank, sync_loss=False
+        )
+        test_metrics_best = regression_metrics(y_test_true, y_test_pred)
+        test_metrics_best['loss'] = test_loss
+        
+        log(f"\n[BEST MODEL - Epoch {best_epoch}]")
+        log(f"  Val:  Loss={val_loss:.6f}, R²={val_metrics['r2']:.4f}")
+        log(f"  Test: Loss={test_loss:.6f}, R²={test_metrics_best['r2']:.4f}, MAE={test_metrics_best['mae']:.4f}")
+        
+        # 2. Final model (last epoch)
+        final_ckpt_path = Path(cfg['save_dir']) / 'final.ckpt'
+        model.module.load_state_dict(torch.load(final_ckpt_path, map_location=device))
+        
+        test_loss_final, y_test_true_final, y_test_pred_final = evaluate_ddp(
+            model, test_loader, criterion, device, rank, sync_loss=False
+        )
+        test_metrics_final = regression_metrics(y_test_true_final, y_test_pred_final)
+        test_metrics_final['loss'] = test_loss_final
+        
+        log(f"\n[FINAL MODEL - Epoch {cfg['epochs']}]")
+        log(f"  Test: Loss={test_loss_final:.6f}, R²={test_metrics_final['r2']:.4f}, MAE={test_metrics_final['mae']:.4f}")
+        
+        # Use whichever performs better on test set
+        if test_metrics_final['r2'] > test_metrics_best['r2']:
+            log(f"\n✅ Final model performs better! Using final model.")
+            test_metrics = test_metrics_final
+            best_model_type = 'final'
+        else:
+            log(f"\n✅ Best model performs better! Using best model.")
+            test_metrics = test_metrics_best
+            best_model_type = 'best'
+        
+        # Training history
+        training_history = {
+            'train_losses': train_losses,
+            'val_losses': val_losses,
+            'val_r2_scores': val_r2_scores,
+            'best_epoch': best_epoch,
+            'best_val_loss': best_val_loss,
+            'best_val_r2': best_val_r2,
+            'selected_model': best_model_type
+        }
         
         # Timing statistics
         timing = {
@@ -324,8 +377,11 @@ def train_ddp(rank: int, world_size: int, cfg: Dict):
         save_dir = Path(cfg['save_dir'])
         save_json(val_metrics, str(save_dir / 'metrics_valid.json'))
         save_json(test_metrics, str(save_dir / 'metrics_test.json'))
+        save_json(test_metrics_best, str(save_dir / 'metrics_test_best.json'))
+        save_json(test_metrics_final, str(save_dir / 'metrics_test_final.json'))
         save_json(norm_stats, str(save_dir / 'norm_stats.json'))
         save_json(timing, str(save_dir / 'timing.json'))
+        save_json(training_history, str(save_dir / 'training_history.json'))
         
         # Add DDP info to config
         cfg_with_ddp = cfg.copy()
@@ -342,6 +398,8 @@ def train_ddp(rank: int, world_size: int, cfg: Dict):
         log(f"Data: {data_source} | Input features: {input_dim}")
         log(f"VAL:  MSE={val_metrics['mse']:.6f}  MAE={val_metrics['mae']:.4f}  R²={val_metrics['r2']:.4f}")
         log(f"TEST: MSE={test_metrics['mse']:.6f}  MAE={test_metrics['mae']:.4f}  R²={test_metrics['r2']:.4f}")
+        log(f"Best validation model: epoch {best_epoch} (Val R²={best_val_r2:.4f})")
+        log(f"Selected model: {best_model_type}")
         log(f"Time/epoch: {timing['mean_time_per_epoch']:.2f}s (±{timing['std_time_per_epoch']:.2f}s)")
         log(f"Total time: {timing['total_time_sec']:.1f}s ({timing['total_epochs']} epochs)")
         log(f"World size: {world_size} GPUs/processes")

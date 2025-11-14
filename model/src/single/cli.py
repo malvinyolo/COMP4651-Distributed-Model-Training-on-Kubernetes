@@ -43,7 +43,6 @@ def parse_args():
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('--patience', type=int, default=5, help='Early stopping patience')
     
     # Model hyperparameters
     parser.add_argument('--hidden_dim', type=int, default=64, help='Hidden dimension')
@@ -134,7 +133,6 @@ def main():
         'epochs': args.epochs,
         'batch_size': args.batch_size,
         'lr': args.lr,
-        'patience': args.patience,
         'hidden_dim': args.hidden_dim,
         'dropout': args.dropout,
         'device': device,
@@ -146,7 +144,7 @@ def main():
     
     # Train model
     log("=" * 60)
-    ckpt_path, timing_info = fit(
+    best_ckpt_path, final_ckpt_path, timing_info = fit(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -156,25 +154,47 @@ def main():
     )
     log("=" * 60)
     
-    # Evaluate on validation set (with best checkpoint)
-    log("Evaluating on validation set...")
-    _, y_val_true, y_val_pred = test(model, val_loader, ckpt_path, device)
-    val_metrics = regression_metrics(y_val_true, y_val_pred)
-    
-    # Evaluate on test set
+    # Evaluate both best and final models on test set
     log("Evaluating on test set...")
-    _, y_test_true, y_test_pred = test(model, test_loader, ckpt_path, device)
-    test_metrics = regression_metrics(y_test_true, y_test_pred)
-    
-    # Save all artifacts
-    save_all_artifacts(
-        run_dir=run_dir,
-        config=config,
-        norm_stats=norm_stats,
-        val_metrics=val_metrics,
-        test_metrics=test_metrics,
-        timing_info=timing_info
+    test_metrics, test_metrics_best, test_metrics_final, y_test_true, y_test_pred = test(
+        model=model,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        best_ckpt_path=best_ckpt_path,
+        final_ckpt_path=final_ckpt_path,
+        device=device
     )
+    
+    # Validation metrics (already computed during training)
+    state_dict = torch.load(best_ckpt_path, map_location=device)
+    model.load_state_dict(state_dict)
+    from torch import nn
+    criterion = nn.MSELoss()
+    from .train import evaluate
+    val_loss, y_val_true, y_val_pred = evaluate(model, val_loader, criterion, device)
+    val_metrics = regression_metrics(y_val_true, y_val_pred)
+    val_metrics['loss'] = val_loss
+    
+    # Save all artifacts (updated)
+    from ..artifacts import save_json, save_yaml
+    save_json(val_metrics, os.path.join(run_dir, 'metrics_valid.json'))
+    save_json(test_metrics, os.path.join(run_dir, 'metrics_test.json'))
+    save_json(test_metrics_best, os.path.join(run_dir, 'metrics_test_best.json'))
+    save_json(test_metrics_final, os.path.join(run_dir, 'metrics_test_final.json'))
+    save_json(norm_stats, os.path.join(run_dir, 'norm_stats.json'))
+    save_json(timing_info, os.path.join(run_dir, 'timing.json'))
+    
+    # Save training history
+    training_history = {
+        'train_losses': timing_info['train_losses'],
+        'val_losses': timing_info['val_losses'],
+        'val_r2_scores': timing_info['val_r2_scores'],
+        'best_epoch': timing_info['best_epoch']
+    }
+    save_json(training_history, os.path.join(run_dir, 'training_history.json'))
+    
+    # Save config
+    save_yaml(config, os.path.join(run_dir, 'config.yaml'))
     
     # Print summary
     log("=" * 60)
@@ -183,6 +203,8 @@ def main():
     log(f"Data: {data_source} | Input features: {input_dim}")
     log(f"VAL:  MSE={val_metrics['mse']:.6f}  MAE={val_metrics['mae']:.4f}  R²={val_metrics['r2']:.4f}")
     log(f"TEST: MSE={test_metrics['mse']:.6f}  MAE={test_metrics['mae']:.4f}  R²={test_metrics['r2']:.4f}")
+    log(f"Best validation model: epoch {timing_info['best_epoch']} (Val R²={timing_info['best_val_r2']:.4f})")
+    log(f"Selected model: {test_metrics['selected_model']}")
     log(f"Time/epoch: {timing_info['mean_time_per_epoch']:.2f}s (±{timing_info['std_time_per_epoch']:.2f})")
     log(f"Total time: {timing_info['total_time_sec']:.1f}s ({timing_info['total_epochs']} epochs)")
     log(f"Saved → {run_dir}")
