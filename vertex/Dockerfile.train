@@ -1,0 +1,28 @@
+# Vertex AI prebuilt PyTorch (CPU) image to avoid heavy torch installs and index issues
+## Use a neutral Python base and install PyTorch CPU wheels explicitly.
+## This avoids reliance on specific Vertex/DeepLearning image tags and works in Cloud Build.
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
+
+# Copy entire model folder (includes requirements.txt, scripts, src/)
+COPY model/ /app/
+
+# Install dependencies except torch/torchvision/torchaudio (already in base image)
+RUN python -m pip install --upgrade pip \
+ && if [ -f requirements.txt ]; then \
+      grep -iEv '^(torch|torchvision|torchaudio)\b' requirements.txt > /tmp/req.txt || true; \
+      pip install --no-cache-dir -r /tmp/req.txt; \
+    fi \
+ && pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Add entrypoint that sets up DDP env and launches training
+COPY vertex/entrypoint_train.py /app/entrypoint_train.py
+
+ENV PYTHONUNBUFFERED=1
+
+ENTRYPOINT ["python", "entrypoint_train.py"]

@@ -1,0 +1,29 @@
+# Cloud Build config to build and push the training image remotely
+# Usage:
+# gcloud builds submit --config vertex/cloudbuild.train.yaml \
+#   --substitutions=_PROJECT_ID=YOUR_PROJECT_ID,_REGION=us-central1,_REPO=ml-pipeline,_IMAGE_TAG=latest .
+
+substitutions:
+  _PROJECT_ID: "sp500-distributed-ml"
+  _REGION: "us-central1"
+  _REPO: "ml-pipeline"
+  _IMAGE_TAG: "latest"
+
+# Removed logging: CLOUD_LOGGING_ONLY to allow gcloud CLI to stream Cloud Storage logs.
+# (gcloud builds log --stream only shows Cloud Storage logs; with CLOUD_LOGGING_ONLY you saw no output.)
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "vertex/Dockerfile.train"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/train:${_IMAGE_TAG}"
+      - "."
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/train:${_IMAGE_TAG}"
+images:
+  - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/train:${_IMAGE_TAG}"

@@ -1,0 +1,26 @@
+# Vertex AI preprocessing container
+# Use a slimmer Python base; pin a version for reproducibility
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# System deps (add any needed like libpq-dev, build-essential, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements from data-pipeline
+COPY data-pipeline/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir google-cloud-storage google-cloud-aiplatform dask[distributed]  # optional distributed
+
+# Copy source code
+COPY data-pipeline/src ./src
+
+# Add entrypoint script (created separately) and make executable
+COPY vertex/entrypoint_preprocess.py ./entrypoint_preprocess.py
+
+ENV PYTHONUNBUFFERED=1
+
+ENTRYPOINT ["python", "entrypoint_preprocess.py"]

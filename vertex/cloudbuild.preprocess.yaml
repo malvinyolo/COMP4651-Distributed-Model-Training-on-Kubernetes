@@ -1,0 +1,29 @@
+# Cloud Build config to build and push the preprocessing image remotely
+# Usage:
+# gcloud builds submit --config vertex/cloudbuild.preprocess.yaml \
+#   --substitutions=_PROJECT_ID=YOUR_PROJECT_ID,_REGION=us-central1,_REPO=ml-pipeline,_IMAGE_TAG=latest .
+
+substitutions:
+  _PROJECT_ID: "sp500-distributed-ml"
+  _REGION: "us-central1"
+  _REPO: "ml-pipeline"
+  _IMAGE_TAG: "latest"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "vertex/Dockerfile.preprocess"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/preprocess:${_IMAGE_TAG}"
+      - "."
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/preprocess:${_IMAGE_TAG}"
+images:
+  - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/preprocess:${_IMAGE_TAG}"
