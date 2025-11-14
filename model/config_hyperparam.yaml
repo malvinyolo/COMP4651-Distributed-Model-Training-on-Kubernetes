@@ -1,0 +1,21 @@
+# Configuration for Hyperparameter Search
+# Base configuration - will be modified by search scripts
+
+epochs: 20  # Shorter for quick experiments
+batch_size: 64
+
+# These will be overridden by search script
+learning_rate: 0.001
+hidden_dim: 128
+num_layers: 2
+
+dropout: 0.1
+
+# Dataset
+data_path: /data/sp500_regression.npz
+
+# System
+device: auto
+seed: 42
+valid_ratio: 0.1
+shuffle_train: true

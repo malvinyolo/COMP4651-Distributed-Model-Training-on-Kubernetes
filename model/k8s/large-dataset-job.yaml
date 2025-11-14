@@ -1,0 +1,83 @@
+apiVersion: "kubeflow.org/v1"
+kind: PyTorchJob
+metadata:
+  name: stock-large-dataset
+  namespace: stock-training
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      restartPolicy: OnFailure
+      template:
+        metadata:
+          labels:
+            app: stock-training
+            job: large-dataset
+        spec:
+          containers:
+            - name: pytorch
+              image: stock-trainer:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - python
+                - -m
+                - src.cli
+                - train
+                - --config
+                - /data/config_large.yaml
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: outputs
+                  mountPath: /outputs
+              resources:
+                limits:
+                  cpu: "4"
+                  memory: "8Gi"
+                requests:
+                  cpu: "2"
+                  memory: "4Gi"
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: stock-data-pvc
+            - name: outputs
+              emptyDir: {}
+    Worker:
+      replicas: 3
+      restartPolicy: OnFailure
+      template:
+        metadata:
+          labels:
+            app: stock-training
+            job: large-dataset
+        spec:
+          containers:
+            - name: pytorch
+              image: stock-trainer:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - python
+                - -m
+                - src.cli
+                - train
+                - --config
+                - /data/config_large.yaml
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: outputs
+                  mountPath: /outputs
+              resources:
+                limits:
+                  cpu: "4"
+                  memory: "8Gi"
+                requests:
+                  cpu: "2"
+                  memory: "4Gi"
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: stock-data-pvc
+            - name: outputs
+              emptyDir: {}

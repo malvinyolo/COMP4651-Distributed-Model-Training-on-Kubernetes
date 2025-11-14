@@ -1,0 +1,27 @@
+# Configuration for Large Dataset Training
+# Use this config for testing cloud capability with scaled datasets
+
+# Training script command-line arguments
+# Usage: python train_single.py --npz_path <path> --epochs 50 --batch_size 64 --lr 1e-3 --hidden_dim 128
+
+# For reference, these are the hyperparameters:
+epochs: 50
+batch_size: 64
+learning_rate: 0.001
+hidden_dim: 128
+dropout: 0.1
+
+# Dataset paths (will be set dynamically)
+# Base: sp500_regression.npz (~300KB, 860 samples)
+# 10x: sp500_regression_x10.npz (~3MB, 8600 samples)  
+# 50x: sp500_regression_x50.npz (~15MB, 43000 samples)
+# 200x: sp500_regression_x200.npz (~60MB, 172000 samples)
+
+# For Kubernetes deployment, mount data at /data/
+data_path: /data/sp500_regression_x200.npz
+
+# System
+device: auto
+seed: 42
+valid_ratio: 0.1
+shuffle_train: true

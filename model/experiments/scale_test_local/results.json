@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-11-14T15:34:07.687764",
+  "total_datasets": 4,
+  "successful": 4,
+  "timeout": 0,
+  "failed": 0,
+  "results": [
+    {
+      "dataset": "sp500_regression.npz",
+      "status": "success",
+      "time": 3.368230104446411
+    },
+    {
+      "dataset": "sp500_regression_x10.npz",
+      "status": "success",
+      "time": 6.168458938598633
+    },
+    {
+      "dataset": "sp500_regression_x50.npz",
+      "status": "success",
+      "time": 22.50366997718811
+    },
+    {
+      "dataset": "sp500_regression_x200.npz",
+      "status": "success",
+      "time": 83.88375496864319
+    }
+  ]
+}

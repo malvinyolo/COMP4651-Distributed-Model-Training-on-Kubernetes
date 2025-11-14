@@ -1,0 +1,15 @@
+batch_size: 16
+data_dir: ../data-pipeline/data/processed
+data_source: sp500_regression.npz
+device: mps
+dropout: 0.1
+epochs: 20
+hidden_dim: 128
+input_dim: 1
+lr: 0.001
+n_params: 385
+npz_path: /Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/data-pipeline/data/processed/sp500_regression.npz
+seed: 42
+shuffle_train: false
+stock_ticker: null
+valid_ratio: 0.1

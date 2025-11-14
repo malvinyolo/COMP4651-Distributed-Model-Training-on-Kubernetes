@@ -1,0 +1,230 @@
+{
+  "total_configs": 18,
+  "successful": 18,
+  "failed": 0,
+  "timeout": 0,
+  "total_time_seconds": 75.92444968223572,
+  "total_time_minutes": 1.2654074947039287,
+  "avg_time_per_config": 4.218024982346429,
+  "dataset": "sp500_regression.npz",
+  "approach": "sequential",
+  "timestamp": "2025-11-14T15:35:33.331348",
+  "results": [
+    {
+      "config": {
+        "id": 0,
+        "hidden_dim": 64,
+        "lr": 0.0001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 6.196286916732788,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 1,
+        "hidden_dim": 64,
+        "lr": 0.0001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 3.909792184829712,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 2,
+        "hidden_dim": 64,
+        "lr": 0.0001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 2.9567160606384277,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 3,
+        "hidden_dim": 64,
+        "lr": 0.001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 5.2646729946136475,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 4,
+        "hidden_dim": 64,
+        "lr": 0.001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 3.819064140319824,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 5,
+        "hidden_dim": 64,
+        "lr": 0.001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 3.077029228210449,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 6,
+        "hidden_dim": 128,
+        "lr": 0.0001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 5.6735920906066895,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 7,
+        "hidden_dim": 128,
+        "lr": 0.0001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 3.755931854248047,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 8,
+        "hidden_dim": 128,
+        "lr": 0.0001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 2.9615819454193115,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 9,
+        "hidden_dim": 128,
+        "lr": 0.001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 5.429311037063599,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 10,
+        "hidden_dim": 128,
+        "lr": 0.001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 3.7067737579345703,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 11,
+        "hidden_dim": 128,
+        "lr": 0.001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 3.0482828617095947,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 12,
+        "hidden_dim": 256,
+        "lr": 0.0001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 6.322162866592407,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 13,
+        "hidden_dim": 256,
+        "lr": 0.0001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 4.028893232345581,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 14,
+        "hidden_dim": 256,
+        "lr": 0.0001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 3.61177396774292,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 15,
+        "hidden_dim": 256,
+        "lr": 0.001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 5.3428261280059814,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 16,
+        "hidden_dim": 256,
+        "lr": 0.001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 3.841355800628662,
+      "status": "success"
+    },
+    {
+      "config": {
+        "id": 17,
+        "hidden_dim": 256,
+        "lr": 0.001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 2.975491762161255,
+      "status": "success"
+    }
+  ]
+}

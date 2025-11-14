@@ -1,0 +1,248 @@
+{
+  "total_configs": 18,
+  "successful": 0,
+  "failed": 18,
+  "timeout": 0,
+  "total_time_seconds": 29.67232370376587,
+  "total_time_minutes": 0.4945387283960978,
+  "avg_time_per_config": 1.6484624279869928,
+  "dataset": "AAPL_data.npz",
+  "approach": "sequential",
+  "timestamp": "2025-11-14T15:27:19.122969",
+  "results": [
+    {
+      "config": {
+        "id": 0,
+        "hidden_dim": 64,
+        "lr": 0.0001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 2.6579372882843018,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '64', '--lr', '0.0001', '--batch_size', '16', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152649/config_0']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 1,
+        "hidden_dim": 64,
+        "lr": 0.0001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.7680301666259766,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '64', '--lr', '0.0001', '--batch_size', '32', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152652/config_1']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 2,
+        "hidden_dim": 64,
+        "lr": 0.0001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.5966870784759521,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '64', '--lr', '0.0001', '--batch_size', '64', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152653/config_2']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 3,
+        "hidden_dim": 64,
+        "lr": 0.001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.5672268867492676,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '64', '--lr', '0.001', '--batch_size', '16', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152655/config_3']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 4,
+        "hidden_dim": 64,
+        "lr": 0.001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.614060878753662,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '64', '--lr', '0.001', '--batch_size', '32', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152657/config_4']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 5,
+        "hidden_dim": 64,
+        "lr": 0.001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.526036024093628,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '64', '--lr', '0.001', '--batch_size', '64', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152658/config_5']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 6,
+        "hidden_dim": 128,
+        "lr": 0.0001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.5847599506378174,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '128', '--lr', '0.0001', '--batch_size', '16', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152700/config_6']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 7,
+        "hidden_dim": 128,
+        "lr": 0.0001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.5392768383026123,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '128', '--lr', '0.0001', '--batch_size', '32', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152701/config_7']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 8,
+        "hidden_dim": 128,
+        "lr": 0.0001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.5787582397460938,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '128', '--lr', '0.0001', '--batch_size', '64', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152703/config_8']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 9,
+        "hidden_dim": 128,
+        "lr": 0.001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.599729061126709,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '128', '--lr', '0.001', '--batch_size', '16', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152704/config_9']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 10,
+        "hidden_dim": 128,
+        "lr": 0.001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.5455780029296875,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '128', '--lr', '0.001', '--batch_size', '32', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152706/config_10']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 11,
+        "hidden_dim": 128,
+        "lr": 0.001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.7017109394073486,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '128', '--lr', '0.001', '--batch_size', '64', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152708/config_11']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 12,
+        "hidden_dim": 256,
+        "lr": 0.0001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.6019649505615234,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '256', '--lr', '0.0001', '--batch_size', '16', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152709/config_12']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 13,
+        "hidden_dim": 256,
+        "lr": 0.0001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.5565080642700195,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '256', '--lr', '0.0001', '--batch_size', '32', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152711/config_13']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 14,
+        "hidden_dim": 256,
+        "lr": 0.0001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.6013920307159424,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '256', '--lr', '0.0001', '--batch_size', '64', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152712/config_14']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 15,
+        "hidden_dim": 256,
+        "lr": 0.001,
+        "batch_size": 16,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.506824016571045,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '256', '--lr', '0.001', '--batch_size', '16', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152714/config_15']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 16,
+        "hidden_dim": 256,
+        "lr": 0.001,
+        "batch_size": 32,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.566145896911621,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '256', '--lr', '0.001', '--batch_size', '32', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152716/config_16']' returned non-zero exit status 2."
+    },
+    {
+      "config": {
+        "id": 17,
+        "hidden_dim": 256,
+        "lr": 0.001,
+        "batch_size": 64,
+        "dropout": 0.1,
+        "epochs": 20
+      },
+      "time": 1.5547969341278076,
+      "status": "failed",
+      "error": "Command '['docker', 'run', '--rm', '--memory=4g', '--cpus=1', '--shm-size=1g', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/data-pipeline/data/processed:/data:ro', '-v', '/Users/malvinrudh/Documents/FALL 25/COMP 4651/Project/COMP4651-Distributed-Model-Training-on-Kubernetes/model/experiments/outputs:/app/outputs:rw', 'stock-trainer:latest', 'python', '-m', 'src.single.cli', '--npz_path', '/data/AAPL_data.npz', '--epochs', '20', '--hidden_dim', '256', '--lr', '0.001', '--batch_size', '64', '--dropout', '0.1', '--output_dir', '/app/outputs/hypersearch_local/20251114_152717/config_17']' returned non-zero exit status 2."
+    }
+  ]
+}
