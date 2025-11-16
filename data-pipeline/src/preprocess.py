@@ -188,6 +188,23 @@ class DataPreprocessor:
         
         print(f"Classification datasets saved to {classification_dir}")
         print(f"Total sequences: {metadata['total_sequences']:,}")
+        
+        # Also create sp500_regression.npz for model training
+        # Use classification data but convert binary labels to normalized floats (for regression model compatibility)
+        print("\nCreating sp500_regression.npz for model training...")
+        all_X_train = np.concatenate([data['X_train'] for data in classification_data.values()], axis=0)
+        all_y_train = np.concatenate([data['y_train'] for data in classification_data.values()], axis=0)
+        all_X_test = np.concatenate([data['X_test'] for data in classification_data.values()], axis=0)
+        all_y_test = np.concatenate([data['y_test'] for data in classification_data.values()], axis=0)
+        
+        # Convert to float for compatibility (binary 0/1 already works as normalized values)
+        sp500_path = os.path.join(PROCESSED_DATA_DIR, 'sp500_regression.npz')
+        np.savez(sp500_path,
+                 X_train=all_X_train, X_test=all_X_test,
+                 y_train=all_y_train.astype(np.float32), y_test=all_y_test.astype(np.float32))
+        
+        print(f"✅ sp500_regression.npz created: {sp500_path}")
+        print(f"   Combined {len(all_X_train):,} training sequences from {len(classification_data)} stocks")
 
 def main():
     processor = DataPreprocessor()
@@ -205,6 +222,7 @@ def main():
         print(f"Sequence length: {SEQUENCE_LENGTH} days")
         print(f"Prediction: Next-day Long/Short (threshold: {CLASSIFICATION_THRESHOLD:.3f})")
         print(f"Features: Open, High, Low, Close, Volume")
+        print(f"✅ sp500_regression.npz created for model training")
         print(f"Perfect for distributed training with {total_stocks} stocks!")
     else:
         print("Processing failed!")

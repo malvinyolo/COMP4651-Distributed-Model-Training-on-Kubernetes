@@ -20,9 +20,7 @@ COPY src/ ./src/
 
 # Copy entry point scripts
 COPY train_single.py .
-COPY train_ddp.py .
 COPY train_all_stocks_single.py .
-COPY train_all_stocks_ddp.py .
 
 # Create output directory (will be mounted as volume)
 RUN mkdir -p outputs

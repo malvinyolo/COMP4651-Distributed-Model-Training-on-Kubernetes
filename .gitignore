@@ -21,15 +21,14 @@ ENV/
 
 # Model outputs and checkpoints
 model/outputs/
+model/experiments/
 *.ckpt
 *.pth
 *.pt
 
 # Data files (keep structure, not large files)
-data-pipeline/data/raw/*.csv
-data-pipeline/data/processed/*.npz
-data-pipeline/data/processed/*.pkl
-data-pipeline/data/processed/scaler.pkl
+# Can be regenerated with run_pipeline.py
+data-pipeline/data/ 
 
 # Jupyter Notebook
 .ipynb_checkpoints

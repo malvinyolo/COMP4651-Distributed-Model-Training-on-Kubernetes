@@ -6,7 +6,7 @@ Simple MLP regressor for benchmarking training performance on time-series regres
 
 Train a baseline regression model to predict next-day normalized stock values. This serves as a benchmark for comparing:
 - **Single-machine training** performance
-- **Distributed Data Parallel (DDP)** training scalability  
+- Cloud-based distributed training scalability
 - Kubernetes cluster efficiency
 - Performance across different stocks
 
@@ -31,21 +31,13 @@ model/
 │   │   ├── train.py        # Training loops
 │   │   └── datamod.py      # Data loading (standard DataLoader)
 │   │
-│   ├── distributed/         # DDP training
-│   │   ├── cli.py          # DDP CLI entry point
-│   │   ├── train.py        # DDP training with gradient sync
-│   │   └── datamod.py      # DDP data loading (DistributedSampler)
-│   │
 │   ├── models.py           # Shared: MLPRegressor architecture
 │   ├── metrics.py          # Shared: MSE, MAE, R² computation
 │   ├── artifacts.py        # Shared: Save/load checkpoints
 │   └── utils.py            # Shared: Utilities (seeding, timing, device)
 │
 ├── train_single.py         # Entry point: single-machine training
-├── train_ddp.py            # Entry point: DDP training
-├── train_all_stocks.py     # Batch: train all stocks (single-machine)
-├── train_all_stocks_ddp.py # Batch: train all stocks (DDP)
-├── compare_training.py     # Compare single-machine vs DDP
+├── train_all_stocks_single.py  # Batch: train all stocks (single-machine)
 │
 ├── outputs/                # Training artifacts (auto-created)
 │   └── run_*/              # Timestamped run directories
@@ -91,39 +83,12 @@ python train_single.py --npz_path ../data-pipeline/data/processed/sp500_regressi
 
 Train all stocks sequentially:
 ```bash
-python train_all_stocks.py --epochs 50
+python train_all_stocks_single.py --epochs 50
 ```
 
-### Distributed Training (DDP)
+## Usage
 
-Train on a specific stock with 2 GPUs:
-```bash
-python train_ddp.py --stock AAPL --epochs 50 --world_size 2
-```
-
-Train all stocks with DDP:
-```bash
-python train_all_stocks_ddp.py --epochs 50 --world_size 2
-```
-
-### Compare Single-Machine vs DDP
-
-```bash
-python compare_training.py --stock AAPL --epochs 10 --world_size 2
-```
-
-This will:
-- Run both single-machine and DDP training
-- Compare training time and speedup
-- Compare final metrics (MSE, MAE, R²)
-- Save results to JSON file
-
-
-│       ├── norm_stats.json## Usage
-
-│       └── timing.json
-
-└── requirements.txt### Basic Training
+### Basic Training
 
 ```
 
@@ -373,17 +338,11 @@ Normalization statistics (mean, std) from training data### I/O
 
 ============================================================
 
-## 🔜 Future WorkTRAINING
+## 🔜 Future Work
 
-============================================================
-
-- [ ] Distributed training (PyTorch DDP)[2025-11-05 14:30:16] Starting training for 25 epochs...
-
-- [ ] Kubernetes deployment[2025-11-05 14:30:16] Early stopping: metric=auc, patience=5
-
-- [ ] Multi-node scaling experiments[2025-11-05 14:30:17] Epoch 1/25 | train_loss=0.6845 | val_loss=0.6732 | val_acc=0.560 | val_auc=0.603
-
-- [ ] Advanced architectures (LSTM, Transformer)[2025-11-05 14:30:17]   ✓ New best auc=0.6034, saved checkpoint
+- [ ] Kubernetes deployment
+- [ ] Multi-node scaling experiments
+- [ ] Advanced architectures (LSTM, Transformer)
 
 ...
 
