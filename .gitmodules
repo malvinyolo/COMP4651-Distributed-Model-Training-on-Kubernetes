@@ -1,0 +1,3 @@
+[submodule "stock-prediction-demo-website"]
+	path = stock-prediction-demo-website
+	url = https://github.com/gugusiow/COMP4651-stock-prediction-website.git
