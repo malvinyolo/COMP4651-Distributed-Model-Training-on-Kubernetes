@@ -106,7 +106,7 @@ docker run --rm \
 docker run --rm \
   --memory="4g" \
   --cpus="2" \
-  -v "$(pwd)/../data-pipeline/data/processed:/data:ro" \
+  -v "$(pwd)/../data-pipeline/data/processed:/data/classification:ro" \
   -v "$(pwd)/outputs:/app/outputs:rw" \
   final-trainer \
   python -m src.single.cli \
