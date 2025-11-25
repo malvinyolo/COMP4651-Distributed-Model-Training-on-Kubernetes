@@ -5,8 +5,9 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data")
 
-# 7 Stocks for distributed training
+# 7 Stocks for training
 STOCKS = ['AAPL', 'MSFT', 'TSLA', 'JPM', 'AMZN', 'XOM', 'JNJ']
+# STOCKS = ['AAPL'] # single stock for testing
 
 # Data parameters - Daily data for 5 years
 DATA_INTERVAL = "1d"    # Daily data

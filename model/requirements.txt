@@ -4,3 +4,4 @@ torch
 scikit-learn
 matplotlib
 pyyaml
+google-cloud-storage>=2.0.0

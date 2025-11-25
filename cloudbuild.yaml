@@ -1,0 +1,42 @@
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build image'
+    args: [ 'build', '-t', '${_IMAGE_URI}', '.' ]
+
+  # Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push image'
+    args: [ 'push', '${_IMAGE_URI}' ]
+
+  # Submit a Vertex AI CustomJob that runs the training helper inside the image
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Submit Vertex AI job'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        echo "Submitting Vertex AI CustomJob using image ${_IMAGE_URI}"
+        gcloud ai custom-jobs create \
+          --region=${_REGION} \
+          --display-name=${_JOB_DISPLAY_NAME} \
+          --worker-pool-spec=machine-type=${_MACHINE_TYPE},replica-count=1,container-image-uri=${_IMAGE_URI} \
+          --command=python \
+          --args="${_JOB_ARGS}"
+
+images:
+  - '${_IMAGE_URI}'
+
+substitutions:
+  _IMAGE_URI: 'us-central1-docker.pkg.dev/sp500-distributed-ml/ml-pipeline/sp500-processor:v5'
+  _REGION: 'us-central1'
+  _JOB_DISPLAY_NAME: 'sp500-train-aapl-v2'
+  _MACHINE_TYPE: 'n1-standard-8'
+  # _JOB_ARGS is a single string of comma-separated args passed to the container command
+  _JOB_ARGS: 'model/src/fetch_and_train.py,--gcs-preprocessed,gs://comp4651-pipeline-bucket/preprocessed,--stock,AAPL,--upload-output,gs://comp4651-pipeline-bucket/models/run-aapl-v2'
+
+timeout: '1200s'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
