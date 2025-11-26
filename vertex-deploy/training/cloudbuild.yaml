@@ -1,0 +1,25 @@
+steps:
+  # Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/mlp-trainer:latest',
+        '.'
+      ]
+
+  # Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'push',
+        '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/mlp-trainer:latest'
+      ]
+
+substitutions:
+  _REGION: 'us-central1'
+  _REPO: 'ml-pipeline'
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/mlp-trainer:latest'
