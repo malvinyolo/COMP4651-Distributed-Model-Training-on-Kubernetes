@@ -1,0 +1,194 @@
+{
+  "components": {
+    "comp-data-preprocess-op": {
+      "executorLabel": "exec-data-preprocess-op",
+      "inputDefinitions": {
+        "parameters": {
+          "gcs_output_bucket": {
+            "parameterType": "STRING"
+          },
+          "project_id": {
+            "parameterType": "STRING"
+          },
+          "region": {
+            "parameterType": "STRING"
+          },
+          "staging_bucket": {
+            "parameterType": "STRING"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "parameters": {
+          "Output": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-model-train-op": {
+      "executorLabel": "exec-model-train-op",
+      "inputDefinitions": {
+        "parameters": {
+          "gcs_output_bucket": {
+            "parameterType": "STRING"
+          },
+          "preprocessed_data_path": {
+            "parameterType": "STRING"
+          },
+          "project_id": {
+            "parameterType": "STRING"
+          },
+          "region": {
+            "parameterType": "STRING"
+          },
+          "staging_bucket": {
+            "parameterType": "STRING"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "parameters": {
+          "Output": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    }
+  },
+  "deploymentSpec": {
+    "executors": {
+      "exec-data-preprocess-op": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "data_preprocess_op"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'google-cloud-aiplatform'  &&  python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.6' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef data_preprocess_op(\n    project_id: str, \n    region: str, \n    gcs_output_bucket: str,\n    staging_bucket: str\n) -> str:\n    from google.cloud import aiplatform\n\n    aiplatform.init(\n        project=project_id, \n        location=region,\n        staging_bucket=staging_bucket\n    )\n\n    job = aiplatform.CustomJob(\n        display_name=\"data-preprocess-job\",\n        staging_bucket=staging_bucket,\n        worker_pool_specs=[\n            {\n                \"machine_spec\": {\"machine_type\": \"n1-standard-4\"},\n                \"replica_count\": 1,\n                \"container_spec\": {\n                    \"image_uri\": \"us-central1-docker.pkg.dev/sp500-distributed-ml/ml-pipeline/data-preprocessor:latest\",\n                    \"command\": [\n                        \"python\", \"src/run_pipeline.py\"\n                    ],\n                    \"args\": [\n                        \"--mode=all\",\n                        f\"--out-gcs={gcs_output_bucket}/pipeline-output\"\n                    ],\n                },\n            }\n        ],\n    )\n    job.run(sync=True)\n    return f\"{gcs_output_bucket}/pipeline-output\"\n\n"
+          ],
+          "image": "python:3.10"
+        }
+      },
+      "exec-model-train-op": {
+        "container": {
+          "args": [
+            "--executor_input",
+            "{{$}}",
+            "--function_to_execute",
+            "model_train_op"
+          ],
+          "command": [
+            "sh",
+            "-c",
+            "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'google-cloud-aiplatform'  &&  python3 -m pip install --quiet --no-warn-script-location 'kfp==2.14.6' '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"$0\" \"$@\"\n",
+            "sh",
+            "-ec",
+            "program_path=$(mktemp -d)\n\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\n_KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+            "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import *\n\ndef model_train_op(\n    project_id: str, \n    region: str, \n    gcs_output_bucket: str,\n    staging_bucket: str,\n    preprocessed_data_path: str\n) -> str:\n    from google.cloud import aiplatform\n\n    aiplatform.init(\n        project=project_id, \n        location=region,\n        staging_bucket=staging_bucket\n    )\n\n    job = aiplatform.CustomJob(\n        display_name=\"model-train-job\",\n        staging_bucket=staging_bucket,\n        worker_pool_specs=[\n            {\n                \"machine_spec\": {\"machine_type\": \"n1-standard-4\"},\n                \"replica_count\": 1,\n                \"container_spec\": {\n                    \"image_uri\": \"us-central1-docker.pkg.dev/sp500-distributed-ml/ml-pipeline/model-train:latest\",\n                    \"args\": [\n                        f\"--data_dir={preprocessed_data_path}/classification\",\n                        \"--bucket=comp4651-pipeline-bucket\",\n                        \"--model_dir=models/mlp_classifier\"\n                    ],\n                },\n            }\n        ],\n    )\n    job.run(sync=True)\n    return \"Model trained successfully!\"\n\n"
+          ],
+          "image": "python:3.10"
+        }
+      }
+    }
+  },
+  "pipelineInfo": {
+    "description": "A pipeline that runs data preprocessing and then model training.",
+    "name": "data-preprocess-train-pipeline"
+  },
+  "root": {
+    "dag": {
+      "tasks": {
+        "data-preprocess-op": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-data-preprocess-op"
+          },
+          "inputs": {
+            "parameters": {
+              "gcs_output_bucket": {
+                "runtimeValue": {
+                  "constant": "gs://comp4651-pipeline-bucket"
+                }
+              },
+              "project_id": {
+                "runtimeValue": {
+                  "constant": "sp500-distributed-ml"
+                }
+              },
+              "region": {
+                "runtimeValue": {
+                  "constant": "us-central1"
+                }
+              },
+              "staging_bucket": {
+                "runtimeValue": {
+                  "constant": "gs://comp4651-pipeline-bucket/staging"
+                }
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "data-preprocess-op"
+          }
+        },
+        "model-train-op": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-model-train-op"
+          },
+          "dependentTasks": [
+            "data-preprocess-op"
+          ],
+          "inputs": {
+            "parameters": {
+              "gcs_output_bucket": {
+                "runtimeValue": {
+                  "constant": "gs://comp4651-pipeline-bucket"
+                }
+              },
+              "preprocessed_data_path": {
+                "taskOutputParameter": {
+                  "outputParameterKey": "Output",
+                  "producerTask": "data-preprocess-op"
+                }
+              },
+              "project_id": {
+                "runtimeValue": {
+                  "constant": "sp500-distributed-ml"
+                }
+              },
+              "region": {
+                "runtimeValue": {
+                  "constant": "us-central1"
+                }
+              },
+              "staging_bucket": {
+                "runtimeValue": {
+                  "constant": "gs://comp4651-pipeline-bucket/staging"
+                }
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "model-train-op"
+          }
+        }
+      }
+    }
+  },
+  "schemaVersion": "2.1.0",
+  "sdkVersion": "kfp-2.14.6"
+}

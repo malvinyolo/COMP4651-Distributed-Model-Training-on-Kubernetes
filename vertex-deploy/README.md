@@ -131,6 +131,33 @@ If you need GPU acceleration, change `machine-type` and add `accelerator-type`/`
 --worker-pool-spec=machine-type=a2-highgpu-1g,replica-count=1,accelerator-type=nvidia-tesla-a100,accelerator-count=1,container-image-uri=...
 ```
 
+## Running Pipeline Job on Vertex AI
+
+You may also run the data-preprocess pipeline and model training sequentially in a pipeline job. 
+
+Nake sure you have a staging bucket within the current bucket you are using. 
+
+In the root directory, run the command:
+```cmd
+ python vertex_ai_pipeline.py
+```
+
+When executing Pipeline Job, common state codes include:
+
+- 1 = QUEUED (waiting to start)
+
+- 2 = PREPARING
+
+- 3 = RUNNING (in progress)
+
+- 4 = SUCCEEDED (completed successfully)
+
+- 5 = FAILED (finished with errors)
+
+- 6 = CANCELLING (being cancelled)
+
+- 7 = CANCELLED (cancelled by user or system)
+
 
 
 ## Scheduling & automation
