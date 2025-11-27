@@ -28,6 +28,18 @@ This project implements a **regression model** to predict next-day stock returns
 │   ├── TRAINING_GUIDE.md  # Detailed hyperparameter documentation
 │   └── requirements.txt
 │
+├── stock-prediction-demo-website/
+│   ├── ml-pipeline/    # Data collection, preprocessing, and training pipeline
+│   ├── models/         # Simple and Enhanced Model for demonstration
+│   ├── static/         # CSS styling and source images
+│   ├── templates/      # web HTML
+│   ├── app.py
+│   
+├── vertex-deploy/
+│   ├── data-pipeline/  # Data collection, preprocessing, and dataset scaling
+│   ├── training/       # Training logic, models, data loaders
+|   ├── vertex_ai_pipeline.py  # script to run pipeline on Vertex AI
+|
 └── README.md           # This file
 ```
 
