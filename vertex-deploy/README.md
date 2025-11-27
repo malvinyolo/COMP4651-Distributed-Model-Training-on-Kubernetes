@@ -22,6 +22,7 @@ gcloud config set compute/region <REGION>
 gsutil mb -l <REGION> gs://<GCS-BUCKET-NAME>
 ```
 
+- You may adjust the parameters for data-ingestion in config.py. For example, you may enter specific stocks you would like to extract data on as well as adjust the data intervals.
 
 
 ## Build & push images (Cloud Build)

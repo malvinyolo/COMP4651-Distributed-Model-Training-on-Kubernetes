@@ -5,14 +5,14 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data")
 
-# 7 Stocks for training
+# Stocks for training
 STOCKS = ['AAPL', 'MSFT', 'TSLA', 'JPM', 'AMZN', 'XOM', 'JNJ', 'NVDA', 'NKE', 'QQQ', 'AMD', 'META']
 # STOCKS = ['AAPL'] # single stock for testing
 
 # Data parameters - Daily data for 5 years
 DATA_INTERVAL = "1d"    # Daily data
 DATA_PERIOD = "5y"      # 5 years
-SEQUENCE_LENGTH = 60    # 60 days (approx 3 months)
+SEQUENCE_LENGTH = 120    # 120 days (approx 6 months)
 TEST_SIZE = 0.2
 CLASSIFICATION_THRESHOLD = 0.001  # 0.1% price movement
 
