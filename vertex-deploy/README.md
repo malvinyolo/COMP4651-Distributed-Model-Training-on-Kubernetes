@@ -135,7 +135,7 @@ If you need GPU acceleration, change `machine-type` and add `accelerator-type`/`
 
 You may also run the data-preprocess pipeline and model training sequentially in a pipeline job. 
 
-Nake sure you have a staging bucket within the current bucket you are using. 
+Make sure to have a staging bucket within the current bucket you are using.
 
 In the root directory, run the command:
 ```cmd
