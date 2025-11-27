@@ -65,7 +65,7 @@ Example:
 gcloud run jobs create data-all-job ^
   --image=us-central1-docker.pkg.dev/sp500-distributed-ml/ml-pipeline/data-preprocessor:latest ^
   --region=us-central1 ^
-  --args="--mode=all,--out-gcs=gs://comp4651-pipeline-bucket/preprocessed"
+  --args="--mode=all,--out-gcs=gs://comp4651-pipeline-bucket/pipeline-output"
 
 gcloud run jobs execute data-all-job --region=us-central1
 ```
@@ -83,7 +83,7 @@ gcloud ai custom-jobs create ^
 After the job completes, verify outputs:
 
 ```cmd
-gsutil ls "gs://comp4651-pipeline-bucket/preprocessed/"
+gsutil ls "gs://comp4651-pipeline-bucket/pipeline-output/"
 ```
 
 
