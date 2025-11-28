@@ -29,7 +29,7 @@ gsutil mb -l <REGION> gs://<GCS-BUCKET-NAME>
 
 Use Cloud Build to build and push images to Artifact Registry (no local Docker required):
 
-Please run these commands within the data-pipeline/ and training/ directories respectively.
+Please run these commands within the data-pipeline/ and training/ directories, respectively.
 
 ```cmd
 gcloud builds submit --project=<PROJECT-NAME> \
@@ -37,10 +37,11 @@ gcloud builds submit --project=<PROJECT-NAME> \
 
 Example: 
 1. data-preprocessor
-gcloud builds submit --project=sp500-distributed-ml --tag=us-central1-docker.pkg.dev/sp500-distributed-ml/ml-pipeline/data-preprocessor:latest .
+gcloud builds submit --project=sp500-distributed-ml ^
+  --tag=us-central1-docker.pkg.dev/sp500-distributed-ml/ml-pipeline/data-preprocessor:latest .
 
 2. model-trainer
-gcloud builds submit --project=sp500-distributed-ml \
+gcloud builds submit --project=sp500-distributed-ml ^
   --tag=us-central1-docker.pkg.dev/sp500-distributed-ml/ml-pipeline/model-train:latest .
 ```
 
